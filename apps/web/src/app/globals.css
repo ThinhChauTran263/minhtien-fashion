@@ -1,0 +1,195 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    scroll-behavior: smooth;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  /* Eliminate 300ms tap delay on mobile */
+  a,
+  button,
+  [role="button"],
+  input,
+  select,
+  textarea {
+    touch-action: manipulation;
+  }
+
+  body {
+    @apply bg-surface-secondary font-sans text-primary-900 antialiased;
+    overscroll-behavior: contain;
+  }
+
+  h1,
+  h2,
+  h3 {
+    @apply font-display text-balance;
+  }
+
+  a,
+  button,
+  input,
+  select,
+  textarea {
+    @apply focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-900 focus-visible:ring-offset-2;
+  }
+
+  ::selection {
+    @apply bg-primary-900 text-white;
+  }
+}
+
+@layer components {
+  .container-page {
+    @apply mx-auto max-w-content px-container-x;
+  }
+
+  .safe-bottom {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+
+  .pb-mobile-nav {
+    padding-bottom: calc(64px + env(safe-area-inset-bottom));
+  }
+
+  .btn {
+    @apply inline-flex items-center justify-center rounded-button font-medium transition-all duration-200 ease-luxury active:scale-[0.98] disabled:pointer-events-none disabled:opacity-50;
+  }
+
+  .btn-primary {
+    @apply btn bg-primary-900 px-6 py-3 text-white shadow-card hover:-translate-y-0.5 hover:bg-primary-800 hover:shadow-card-hover;
+  }
+
+  .btn-secondary,
+  .btn-outline {
+    @apply btn border border-primary-900 bg-transparent px-6 py-3 text-primary-900 hover:bg-primary-900 hover:text-white;
+  }
+
+  .btn-ghost {
+    @apply btn px-4 py-2 text-primary-700 hover:bg-primary-100;
+  }
+
+  .btn-danger {
+    @apply btn bg-error px-6 py-3 text-white hover:bg-red-700;
+  }
+
+  .input,
+  .input-field {
+    @apply w-full rounded-input border border-primary-200 bg-white px-4 py-3 text-body-md placeholder:text-primary-400 transition-all duration-150 focus:border-transparent focus:ring-primary-900;
+  }
+
+  .card {
+    @apply rounded-card border border-primary-100 bg-surface shadow-card transition-all duration-300 ease-luxury hover:-translate-y-1 hover:shadow-card-hover;
+  }
+
+  .section-padding {
+    @apply py-section-y-sm md:py-section-y;
+  }
+
+  .overline-text {
+    @apply text-overline uppercase tracking-widest text-primary-500;
+  }
+
+  .luxury-link {
+    @apply relative inline-flex items-center text-sm font-medium text-primary-900 transition-colors after:absolute after:-bottom-1 after:left-0 after:h-px after:w-full after:origin-left after:scale-x-0 after:bg-primary-900 after:transition-transform after:duration-300 hover:text-primary-700 hover:after:scale-x-100;
+  }
+}
+
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+
+  .animate-fade-in {
+    animation: fadeIn 0.4s ease-out both;
+  }
+
+  .animate-slide-up {
+    animation: slideUp 0.45s ease-out both;
+  }
+
+  .animate-scale-in {
+    animation: scaleIn 0.3s ease-out both;
+  }
+
+  .glass-panel {
+    @apply border border-white/60 bg-white/80 shadow-card backdrop-blur-xl;
+  }
+
+  .animate-blur-in {
+    animation: blurIn 0.5s ease-out both;
+  }
+
+  .animate-float {
+    animation: float 6s ease-in-out infinite;
+  }
+
+  /* Skeleton shimmer cho loading state */
+  .shimmer {
+    background: linear-gradient(
+      90deg,
+      theme("colors.primary.100") 25%,
+      theme("colors.primary.200") 37%,
+      theme("colors.primary.100") 63%
+    );
+    background-size: 400% 100%;
+    animation: shimmer 1.4s ease infinite;
+  }
+
+  /* Gạch chân chạy mượt cho nav link sáng (trên nền tối) */
+  .luxury-link-light {
+    @apply relative inline-flex items-center text-sm font-medium text-white/90 transition-colors after:absolute after:-bottom-1 after:left-0 after:h-px after:w-full after:origin-left after:scale-x-0 after:bg-white after:transition-transform after:duration-300 hover:text-white hover:after:scale-x-100;
+  }
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes slideUp {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes scaleIn {
+  from { opacity: 0; transform: scale(0.96); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+@keyframes blurIn {
+  from { opacity: 0; filter: blur(8px); transform: translateY(8px); }
+  to { opacity: 1; filter: blur(0); transform: translateY(0); }
+}
+
+@keyframes float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-10px); }
+}
+
+@keyframes shimmer {
+  0% { background-position: 100% 50%; }
+  100% { background-position: 0 50%; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+@media (max-width: 768px) {
+  iframe[title*="chat widget" i] {
+    bottom: 80px !important;
+  }
+}

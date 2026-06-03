@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 1200" role="img" aria-label="Basic unisex sweatshirt">
+  <rect width="900" height="1200" fill="#edf2f7"/>
+  <path d="M230 315 350 240h200l120 75 112 170-118 82-58-90v635H294V477l-58 90-118-82 112-170Z" fill="#7c3f58"/>
+  <path d="M374 248c16 75 136 75 152 0" fill="none" stroke="#f3d7e2" stroke-width="24"/>
+  <path d="M315 860h270" stroke="#f3d7e2" stroke-width="28" opacity=".6"/>
+</svg>

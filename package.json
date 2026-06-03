@@ -1,0 +1,32 @@
+{
+    "name":  "minh-tien-fashion",
+    "private":  true,
+    "workspaces":  [
+                       "apps/*",
+                       "packages/*"
+                   ],
+    "scripts":  {
+                    "dev:web":  "npm run dev --workspace=apps/web",
+                    "dev:api":  "npm run dev --workspace=apps/api",
+                    "build:web":  "npm run build --workspace=apps/web",
+                    "build:api":  "npm run build --workspace=apps/api",
+                    "lint":  "npm run lint --workspaces --if-present",
+                    "db:migrate":  "npm run db:migrate --workspace=apps/api",
+                    "db:seed":  "npm run db:seed --workspace=apps/api",
+                    "typecheck:api":  "npm run typecheck --workspace=apps/api",
+                    "typecheck:web":  "npx tsc --noEmit --project apps/web/tsconfig.json",
+                    "test:api":  "npm run test --workspace=apps/api",
+                    "test:api:ci":  "npm run test:ci --workspace=apps/api",
+                    "ci:api":  "npm run db:deploy --workspace=apps/api \u0026\u0026 npm run typecheck --workspace=apps/api \u0026\u0026 npm run test:ci --workspace=apps/api \u0026\u0026 npm run build --workspace=apps/api",
+                    "ci:web":  "npm run typecheck:web \u0026\u0026 npm run build --workspace=apps/web"
+                },
+    "devDependencies":  {
+                            "typescript":  "^5.5.0"
+                        },
+    "engines":  {
+                    "node":  "\u003e=20.0.0"
+                },
+    "dependencies":  {
+                         "sonner":  "^2.0.7"
+                     }
+}

@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 1200" role="img" aria-label="Polo Dry-Fit Sport">
+  <rect width="900" height="1200" fill="#eef7f4"/>
+  <path d="M250 320 365 245h170l115 75 105 180-118 67-47-78v632H310V489l-47 78-118-67 105-180Z" fill="#4a5d3a"/>
+  <path d="M365 245h170l-85 126-85-126Z" fill="#dbe7d1"/>
+  <path d="M340 650c90-85 170-85 250 0" fill="none" stroke="#cde7c4" stroke-width="24" opacity=".7"/>
+  <path d="M340 750c90-85 170-85 250 0" fill="none" stroke="#cde7c4" stroke-width="24" opacity=".55"/>
+</svg>

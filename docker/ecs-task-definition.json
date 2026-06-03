@@ -1,0 +1,65 @@
+{
+  "family": "mtf-api",
+  "networkMode": "awsvpc",
+  "requiresCompatibilities": ["FARGATE"],
+  "cpu": "256",
+  "memory": "512",
+  "executionRoleArn": "arn:aws:iam::ACCOUNT_ID:role/ecsTaskExecutionRole",
+  "taskRoleArn": "arn:aws:iam::ACCOUNT_ID:role/mtf-api-task-role",
+  "containerDefinitions": [
+    {
+      "name": "mtf-api",
+      "image": "ACCOUNT_ID.dkr.ecr.ap-southeast-1.amazonaws.com/mtf-api:latest",
+      "essential": true,
+      "portMappings": [
+        {
+          "containerPort": 4000,
+          "protocol": "tcp"
+        }
+      ],
+      "environment": [
+        { "name": "NODE_ENV", "value": "production" },
+        { "name": "PORT", "value": "4000" },
+        { "name": "AWS_REGION", "value": "ap-southeast-1" },
+        { "name": "AWS_S3_BUCKET", "value": "minh-tien-fashion" },
+        { "name": "CORS_ORIGIN", "value": "https://minhtien.vn" },
+        { "name": "FRONTEND_URL", "value": "https://minhtien.vn" },
+        { "name": "API_URL", "value": "https://api.minhtien.vn" },
+        { "name": "VNPAY_URL", "value": "https://sandbox.vnpayment.vn/paymentv2/vpcpay.html" },
+        { "name": "VNPAY_RETURN_URL", "value": "https://api.minhtien.vn/api/payment/vnpay/callback" },
+        { "name": "MOMO_ENDPOINT", "value": "https://test-payment.momo.vn/v2/gateway/api/create" },
+        { "name": "MOMO_RETURN_URL", "value": "https://api.minhtien.vn/api/payment/momo/return" },
+        { "name": "MOMO_IPN_URL", "value": "https://api.minhtien.vn/api/payment/momo/callback" },
+        { "name": "RESET_PASSWORD_URL", "value": "https://minhtien.vn/dat-lai-mat-khau" },
+        { "name": "SES_FROM_EMAIL", "value": "no-reply@minhtien.vn" }
+      ],
+      "secrets": [
+        { "name": "DATABASE_URL", "valueFrom": "arn:aws:secretsmanager:ap-southeast-1:ACCOUNT_ID:secret:mtf/database-url" },
+        { "name": "REDIS_URL", "valueFrom": "arn:aws:secretsmanager:ap-southeast-1:ACCOUNT_ID:secret:mtf/redis-url" },
+        { "name": "JWT_SECRET", "valueFrom": "arn:aws:secretsmanager:ap-southeast-1:ACCOUNT_ID:secret:mtf/jwt-secret" },
+        { "name": "JWT_REFRESH_SECRET", "valueFrom": "arn:aws:secretsmanager:ap-southeast-1:ACCOUNT_ID:secret:mtf/jwt-refresh-secret" },
+        { "name": "VNPAY_TMN_CODE", "valueFrom": "arn:aws:secretsmanager:ap-southeast-1:ACCOUNT_ID:secret:mtf/vnpay-tmn-code" },
+        { "name": "VNPAY_HASH_SECRET", "valueFrom": "arn:aws:secretsmanager:ap-southeast-1:ACCOUNT_ID:secret:mtf/vnpay-hash-secret" },
+        { "name": "MOMO_PARTNER_CODE", "valueFrom": "arn:aws:secretsmanager:ap-southeast-1:ACCOUNT_ID:secret:mtf/momo-partner-code" },
+        { "name": "MOMO_ACCESS_KEY", "valueFrom": "arn:aws:secretsmanager:ap-southeast-1:ACCOUNT_ID:secret:mtf/momo-access-key" },
+        { "name": "MOMO_SECRET_KEY", "valueFrom": "arn:aws:secretsmanager:ap-southeast-1:ACCOUNT_ID:secret:mtf/momo-secret-key" }
+      ],
+      "logConfiguration": {
+        "logDriver": "awslogs",
+        "options": {
+          "awslogs-group": "/ecs/mtf-api",
+          "awslogs-region": "ap-southeast-1",
+          "awslogs-stream-prefix": "ecs",
+          "awslogs-create-group": "true"
+        }
+      },
+      "healthCheck": {
+        "command": ["CMD-SHELL", "wget -qO- http://127.0.0.1:4000/health || exit 1"],
+        "interval": 30,
+        "timeout": 5,
+        "retries": 3,
+        "startPeriod": 30
+      }
+    }
+  ]
+}

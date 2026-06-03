@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 1200" role="img" aria-label="Polo Classic Cotton navy">
+  <rect width="900" height="1200" fill="#eef3f5"/>
+  <path d="M245 320 365 245h170l120 75 110 175-120 72-55-86v640H310V481l-55 86-120-72 110-175Z" fill="#1b3a5c"/>
+  <path d="M365 245h170l-85 126-85-126Z" fill="#f8fafc"/>
+  <circle cx="450" cy="455" r="12" fill="#dbeafe"/>
+  <circle cx="450" cy="510" r="12" fill="#dbeafe"/>
+</svg>

@@ -1,0 +1,62 @@
+﻿version: "3.9"
+
+# Local development stack: Postgres + Redis + Mailpit + (optional) API
+# Cháº¡y: docker compose up -d
+# Sau Ä‘Ã³: npm run db:migrate && npm run db:seed && npm run dev:api && npm run dev:web
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: mtf-postgres
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: minh_tien_fashion
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: mtf-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  meilisearch:
+    image: getmeili/meilisearch:v1.12
+    container_name: mtf-meilisearch
+    environment:
+      MEILI_MASTER_KEY: dev-master-key
+      MEILI_ENV: development
+    ports:
+      - "7700:7700"
+    volumes:
+      - meili_data:/meili_data
+    restart: unless-stopped
+
+  mailpit:
+    image: axllent/mailpit:latest
+    container_name: mtf-mailpit
+    ports:
+      - "1025:1025" # SMTP
+      - "8025:8025" # Web UI
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+  redis_data:
+  meili_data:
+

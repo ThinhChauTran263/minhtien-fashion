@@ -1,0 +1,45 @@
+# ============================================================
+# Web app Dockerfile (Next.js 14 standalone output)
+# Cho phép self-host nếu không deploy trên Vercel
+# ============================================================
+
+FROM node:20-alpine AS deps
+WORKDIR /app
+
+COPY package.json package-lock.json* ./
+COPY apps/web/package.json ./apps/web/
+RUN npm ci --workspace=apps/web --include-workspace-root
+
+FROM node:20-alpine AS builder
+WORKDIR /app
+COPY --from=deps /app/node_modules ./node_modules
+COPY --from=deps /app/apps/web/node_modules ./apps/web/node_modules
+COPY package.json package-lock.json* ./
+COPY apps/web ./apps/web
+
+ARG NEXT_PUBLIC_API_URL
+ARG NEXT_PUBLIC_SITE_URL
+ENV NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}
+ENV NEXT_PUBLIC_SITE_URL=${NEXT_PUBLIC_SITE_URL}
+
+WORKDIR /app/apps/web
+RUN npm run build
+
+FROM node:20-alpine AS runner
+WORKDIR /app
+ENV NODE_ENV=production
+
+RUN addgroup --system --gid 1001 nodejs && \
+    adduser --system --uid 1001 nextjs
+
+COPY --from=builder /app/apps/web/public ./apps/web/public
+COPY --from=builder --chown=nextjs:nodejs /app/apps/web/.next ./apps/web/.next
+COPY --from=builder /app/apps/web/package.json ./apps/web/package.json
+COPY --from=builder /app/node_modules ./node_modules
+COPY --from=builder /app/apps/web/node_modules ./apps/web/node_modules
+
+USER nextjs
+EXPOSE 3000
+
+WORKDIR /app/apps/web
+CMD ["npm", "run", "start"]

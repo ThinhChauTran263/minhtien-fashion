@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Bạn đang offline - Minh Tien Fashion</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: #fafafa;
+      color: #1a1a1a;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 2rem;
+    }
+    .card { max-width: 400px; text-align: center; }
+    h1 { font-size: 1.5rem; margin-bottom: 0.5rem; }
+    p { color: #737373; margin-bottom: 1.5rem; }
+    button {
+      background: #1a1a1a; color: white; border: none;
+      padding: 12px 24px; border-radius: 6px; cursor: pointer;
+      font-size: 14px; font-weight: 500;
+    }
+    button:hover { background: #0a0a0a; }
+    .icon { font-size: 64px; margin-bottom: 1rem; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="icon">📡</div>
+    <h1>Bạn đang offline</h1>
+    <p>Vui lòng kiểm tra kết nối internet và thử lại.</p>
+    <button onclick="location.reload()">Thử lại</button>
+  </div>
+</body>
+</html>

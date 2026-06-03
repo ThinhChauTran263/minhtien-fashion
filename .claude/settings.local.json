@@ -1,0 +1,36 @@
+{
+  "permissions": {
+    "allow": [
+      "mcp__chrome-devtools__list_pages",
+      "mcp__chrome-devtools__navigate_page",
+      "mcp__chrome-devtools__take_screenshot",
+      "mcp__chrome-devtools__take_snapshot",
+      "mcp__chrome-devtools__list_console_messages",
+      "mcp__chrome-devtools__click",
+      "mcp__chrome-devtools__fill",
+      "mcp__chrome-devtools__fill_form",
+      "mcp__chrome-devtools__emulate",
+      "mcp__chrome-devtools__lighthouse_audit",
+      "mcp__chrome-devtools__evaluate_script",
+      "Bash(npx kill-port *)",
+      "Bash(npm run *)",
+      "mcp__chrome-devtools__wait_for",
+      "mcp__chrome-devtools__list_network_requests",
+      "Bash(curl -s http://localhost:4000/api/products/admin-created)",
+      "Bash(curl *)",
+      "Bash(node -p \"JSON.parse\\(require\\('fs'\\).readFileSync\\(0,'utf8'\\)\\)\")",
+      "Bash(rm -rf .next)",
+      "Bash(npx next *)",
+      "Bash(node -p \"const d=require\\('fs'\\).readFileSync\\(0,'utf8'\\);const j=JSON.parse\\(d\\);j.success?'OK':j.error\")",
+      "Bash(node -p \"JSON.parse\\(require\\('fs'\\).readFileSync\\(0,'utf8'\\)\\).data.map\\(c=>c.id+' - '+c.name\\).join\\('\\\\n'\\)\")",
+      "Bash(node -p \"const j=JSON.parse\\(require\\('fs'\\).readFileSync\\(0,'utf8'\\)\\);j.success?'CREATED: '+j.data.name+' | slug: '+j.data.slug+' | price: '+j.data.basePrice:'ERROR: '+j.error\")",
+      "Bash(npx prisma *)",
+      "Bash(npx tsc *)",
+      "Bash(npm install *)",
+      "Read(//c/Program Files/**)",
+      "Bash(docker exec *)",
+      "Bash(npx tsx *)",
+      "Bash(timeout 10 head -30)"
+    ]
+  }
+}

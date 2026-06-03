@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 1200" role="img" aria-label="Basic cotton t-shirt">
+  <rect width="900" height="1200" fill="#f6f2ee"/>
+  <path d="M245 310 360 245h180l115 65 118 150-102 89-75-83v650H304V466l-75 83-102-89 118-150Z" fill="#6b7280"/>
+  <path d="M386 250c8 60 120 60 128 0" fill="none" stroke="#e5e7eb" stroke-width="20"/>
+</svg>

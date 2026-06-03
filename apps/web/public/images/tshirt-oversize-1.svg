@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 1200" role="img" aria-label="Oversize streetwear t-shirt">
+  <rect width="900" height="1200" fill="#f1f5f9"/>
+  <path d="M215 300 350 235h200l135 65 132 160-116 98-88-84v660H287V474l-88 84-116-98 132-160Z" fill="#111827"/>
+  <rect x="350" y="560" width="200" height="200" rx="18" fill="#f59e0b" opacity=".9"/>
+</svg>
