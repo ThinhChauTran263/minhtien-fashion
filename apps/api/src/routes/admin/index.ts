@@ -21,6 +21,7 @@ import { adminBlogRoutes } from "./blog.routes";
 import { adminBundleRoutes } from "./bundle.routes";
 import { adminGiftCardRoutes } from "./giftcard.routes";
 import { adminSettingRoutes } from "./settings.routes";
+import manufacturingRoutes from "./manufacturing.routes";
 
 const router = Router();
 
@@ -94,5 +95,6 @@ router.use("/blog", adminBlogRoutes);
 router.use("/bundles", adminBundleRoutes);
 router.use("/gift-cards", adminGiftCardRoutes);
 router.use("/settings", adminSettingRoutes);
+router.use("/manufacturing", manufacturingRoutes);
 
 export { router as adminRoutes };

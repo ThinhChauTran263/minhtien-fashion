@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
@@ -12,6 +12,7 @@ import {
   Mail,
   Package,
   RotateCcw,
+  Factory,
   Ruler,
   Settings,
   ShoppingCart,
@@ -42,6 +43,7 @@ const menuItems = [
   { key: "banners", href: "/admin/banners", icon: Image },
   { key: "newsletter", href: "/admin/newsletter", icon: Mail },
   { key: "tailoring", href: "/admin/tailoring", icon: Scissors },
+  { key: "manufacturing", href: "/admin/manufacturing", icon: Factory },
   { key: "sizeGuide", href: "/admin/size-guide", icon: Ruler },
   { key: "returns", href: "/admin/returns", icon: RotateCcw },
   { key: "settings", href: "/admin/settings", icon: Settings },

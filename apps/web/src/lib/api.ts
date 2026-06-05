@@ -1,4 +1,4 @@
-﻿import axios from "axios";
+import axios from "axios";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 
@@ -330,6 +330,15 @@ export const adminApi = {
   // Reports
   getReportSummary: (from: string, to: string, groupBy: string = "day") =>
     api.get("/admin/reports/summary", { params: { from, to, groupBy } }),
+
+  // Manufacturing
+  getMaterials: () => api.get("/admin/manufacturing/materials"),
+  createMaterial: (data: any) => api.post("/admin/manufacturing/materials", data),
+  getMaterialReceipts: () => api.get("/admin/manufacturing/receipts"),
+  createMaterialReceipt: (data: any) => api.post("/admin/manufacturing/receipts", data),
+  getMaterialRolls: () => api.get("/admin/manufacturing/rolls"),
+  getProductions: () => api.get("/admin/manufacturing/productions"),
+  createProduction: (data: any) => api.post("/admin/manufacturing/productions", data),
 };
 
 
