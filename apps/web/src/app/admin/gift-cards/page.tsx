@@ -1,12 +1,13 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useState, useEffect } from "react";
 import { Ban, Loader2, Plus, Search, X, History, XCircle } from "lucide-react";
 import { toast } from "sonner";
 import { api } from "@/lib/api";
 import { formatPrice } from "@/lib/utils";
 import { formatDate } from "@/lib/customer-utils";
 import { cn } from "@/lib/utils";
+import { useQuery, useMutation, useQueryClient, keepPreviousData } from "@tanstack/react-query";
 
 type Customer = {
   id: string;
@@ -43,22 +44,8 @@ const statusOptions = [
   { key: "cancelled", label: "Đã hủy" },
 ];
 
-type LedgerTransaction = {
-  id: string;
-  type: string;
-  amount: number | string;
-  balanceBefore: number | string;
-  balanceAfter: number | string;
-  note?: string;
-  createdAt: string;
-  user?: Customer | null;
-  order?: { id: string; code: string; total: string | number } | null;
-};
-
 export default function AdminGiftCardsPage() {
-  const [items, setItems] = useState<GiftCard[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
+  const queryClient = useQueryClient();
   const [status, setStatus] = useState("");
   const [query, setQuery] = useState("");
   const [userQuery, setUserQuery] = useState("");
@@ -76,39 +63,28 @@ export default function AdminGiftCardsPage() {
   });
 
   const [ledgerCard, setLedgerCard] = useState<GiftCard | null>(null);
-  const [ledgerLoading, setLedgerLoading] = useState(false);
-  const [ledgerData, setLedgerData] = useState<LedgerTransaction[]>([]);
 
-  const fetchLedger = async (card: GiftCard) => {
-    setLedgerCard(card);
-    setLedgerLoading(true);
-    try {
-      const res = await api.get(`/admin/gift-cards/${card.id}/transactions`);
-      setLedgerData(res.data.data);
-    } catch {
-      toast.error("Không thể tải lịch sử giao dịch");
-    } finally {
-      setLedgerLoading(false);
-    }
-  };
-
-  const fetchData = useCallback(async () => {
-    setLoading(true);
-    try {
+  const { data: items = [], isLoading } = useQuery({
+    queryKey: ["admin", "gift-cards", { status, query }],
+    queryFn: async () => {
       const res = await api.get("/admin/gift-cards", {
         params: { ...(status ? { status } : {}), ...(query ? { q: query } : {}) },
       });
-      setItems(res.data.data.items);
-    } catch {
-      toast.error("Không thể tải danh sách gift card");
-    } finally {
-      setLoading(false);
-    }
-  }, [query, status]);
+      return res.data.data.items || [];
+    },
+    placeholderData: keepPreviousData,
+    staleTime: 60 * 1000,
+  });
 
-  useEffect(() => {
-    fetchData();
-  }, [fetchData]);
+  const { data: ledgerData = [], isLoading: ledgerLoading } = useQuery({
+    queryKey: ["admin", "gift-cards", "ledger", ledgerCard?.id],
+    queryFn: async () => {
+      if (!ledgerCard) return [];
+      const res = await api.get(`/admin/gift-cards/${ledgerCard.id}/transactions`);
+      return res.data.data || [];
+    },
+    enabled: !!ledgerCard,
+  });
 
   useEffect(() => {
     if (userQuery.trim().length < 2) {
@@ -126,7 +102,32 @@ export default function AdminGiftCardsPage() {
     return () => window.clearTimeout(timer);
   }, [userQuery]);
 
-  const createGiftCard = async (event: React.FormEvent) => {
+  const createMutation = useMutation({
+    mutationFn: (payload: any) => api.post("/admin/gift-cards", payload),
+    onSuccess: () => {
+      toast.success("Đã tạo gift card");
+      setSelectedUser(null);
+      setUserQuery("");
+      setForm((current) => ({ ...current, recipientEmail: "", recipientName: "", message: "", internalNote: "" }));
+      queryClient.invalidateQueries({ queryKey: ["admin", "gift-cards"] });
+    },
+    onError: (err: any) => {
+      toast.error(err.response?.data?.error || "Không tạo được gift card");
+    }
+  });
+
+  const cancelMutation = useMutation({
+    mutationFn: ({ id, reason }: { id: string; reason: string }) => api.patch(`/admin/gift-cards/${id}/deactivate`, { reason }),
+    onSuccess: () => {
+      toast.success("Đã hủy gift card");
+      queryClient.invalidateQueries({ queryKey: ["admin", "gift-cards"] });
+    },
+    onError: () => {
+      toast.error("Không hủy được gift card");
+    }
+  });
+
+  const createGiftCard = (event: React.FormEvent) => {
     event.preventDefault();
     const amount = Number(form.amount);
     if (!Number.isInteger(amount) || amount <= 0) {
@@ -134,40 +135,22 @@ export default function AdminGiftCardsPage() {
       return;
     }
 
-    setSaving(true);
-    try {
-      await api.post("/admin/gift-cards", {
-        amount,
-        beneficiaryUserId: selectedUser?.id,
-        recipientEmail: selectedUser ? undefined : form.recipientEmail || undefined,
-        recipientName: selectedUser ? undefined : form.recipientName || undefined,
-        message: form.message || undefined,
-        expiresAt: form.expiresAt ? new Date(form.expiresAt).toISOString() : undefined,
-        source: form.source,
-        internalNote: form.internalNote || undefined,
-        sendEmail: form.sendEmail,
-      });
-      toast.success("Đã tạo gift card");
-      setSelectedUser(null);
-      setUserQuery("");
-      setForm((current) => ({ ...current, recipientEmail: "", recipientName: "", message: "", internalNote: "" }));
-      fetchData();
-    } catch (err: any) {
-      toast.error(err.response?.data?.error || "Không tạo được gift card");
-    } finally {
-      setSaving(false);
-    }
+    createMutation.mutate({
+      amount,
+      beneficiaryUserId: selectedUser?.id,
+      recipientEmail: selectedUser ? undefined : form.recipientEmail || undefined,
+      recipientName: selectedUser ? undefined : form.recipientName || undefined,
+      message: form.message || undefined,
+      expiresAt: form.expiresAt ? new Date(form.expiresAt).toISOString() : undefined,
+      source: form.source,
+      internalNote: form.internalNote || undefined,
+      sendEmail: form.sendEmail,
+    });
   };
 
-  const cancelGiftCard = async (id: string) => {
+  const cancelGiftCard = (id: string) => {
     const reason = window.prompt("Lý do hủy gift card?") || "Admin cancelled";
-    try {
-      await api.patch(`/admin/gift-cards/${id}/deactivate`, { reason });
-      toast.success("Đã hủy gift card");
-      fetchData();
-    } catch {
-      toast.error("Không hủy được gift card");
-    }
+    cancelMutation.mutate({ id, reason });
   };
 
   return (
@@ -204,7 +187,7 @@ export default function AdminGiftCardsPage() {
             {selectedUser ? (
               <div className="flex items-center justify-between rounded-lg border border-primary-200 bg-primary-50 px-3 py-2 text-sm">
                 <span><b>{selectedUser.name}</b> · {selectedUser.email}</span>
-                <button type="button" onClick={() => setSelectedUser(null)} className="rounded p-1 hover:bg-white"><X className="h-4 w-4" /></button>
+                <button type="button" onClick={() => setSelectedUser(null)} className="rounded p-1 hover:bg-white cursor-pointer"><X className="h-4 w-4" /></button>
               </div>
             ) : (
               <>
@@ -215,7 +198,7 @@ export default function AdminGiftCardsPage() {
                 {users.length > 0 && (
                   <div className="absolute z-20 mt-1 max-h-56 w-full overflow-auto rounded-lg border border-gray-100 bg-white shadow-lg">
                     {users.map((user) => (
-                      <button key={user.id} type="button" onClick={() => { setSelectedUser(user); setUsers([]); setUserQuery(""); }} className="block w-full px-3 py-2 text-left text-sm hover:bg-gray-50">
+                      <button key={user.id} type="button" onClick={() => { setSelectedUser(user); setUsers([]); setUserQuery(""); }} className="block w-full px-3 py-2 text-left text-sm hover:bg-gray-50 cursor-pointer">
                         <b>{user.name}</b><br /><span className="text-xs text-gray-500">{user.email}{user.phone ? ` · ${user.phone}` : ""}</span>
                       </button>
                     ))}
@@ -254,15 +237,15 @@ export default function AdminGiftCardsPage() {
             <input type="checkbox" checked={form.sendEmail} onChange={(e) => setForm({ ...form, sendEmail: e.target.checked })} />
             Gửi email nếu có email người nhận
           </label>
-          <button type="submit" disabled={saving} className="btn-primary px-5">
-            {saving ? "Đang tạo..." : "Tạo gift card"}
+          <button type="submit" disabled={createMutation.isPending} className="btn-primary px-5 cursor-pointer">
+            {createMutation.isPending ? "Đang tạo..." : "Tạo gift card"}
           </button>
         </div>
       </form>
 
       <div className="flex flex-wrap items-center gap-2">
         {statusOptions.map((option) => (
-          <button key={option.key} onClick={() => setStatus(option.key)} className={cn("rounded-md px-3 py-1.5 text-sm", status === option.key ? "bg-primary-800 text-white" : "border border-gray-200 bg-white")}>{option.label}</button>
+          <button key={option.key} onClick={() => setStatus(option.key)} className={cn("rounded-md px-3 py-1.5 text-sm cursor-pointer", status === option.key ? "bg-primary-800 text-white" : "border border-gray-200 bg-white")}>{option.label}</button>
         ))}
         <div className="relative ml-auto min-w-64">
           <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
@@ -270,7 +253,7 @@ export default function AdminGiftCardsPage() {
         </div>
       </div>
 
-      {loading ? (
+      {isLoading ? (
         <div className="flex h-40 items-center justify-center"><Loader2 className="h-6 w-6 animate-spin text-gray-400" /></div>
       ) : (
         <div className="overflow-x-auto rounded-lg bg-white shadow-sm">
@@ -287,7 +270,7 @@ export default function AdminGiftCardsPage() {
               </tr>
             </thead>
             <tbody>
-              {items.map((card) => (
+              {items.map((card: any) => (
                 <tr key={card.id} className="border-b border-gray-100">
                   <td className="px-4 py-3 font-mono text-xs">{card.code}</td>
                   <td className="px-4 py-3">{formatPrice(Number(card.amount))}</td>
@@ -298,9 +281,9 @@ export default function AdminGiftCardsPage() {
                   <td className="px-4 py-3"><span className="rounded-full bg-gray-100 px-2 py-1 text-xs font-medium">{card.status}</span></td>
                   <td className="px-4 py-3 text-xs">{formatDate(card.expiresAt)}</td>
                   <td className="px-4 py-3 text-right">
-                    <button onClick={() => fetchLedger(card)} className="mr-2 rounded p-1.5 text-gray-500 hover:bg-gray-100 hover:text-gray-900" title="Xem lịch sử (Ledger)"><History className="h-4 w-4" /></button>
+                    <button onClick={() => setLedgerCard(card)} className="mr-2 rounded p-1.5 text-gray-500 hover:bg-gray-100 hover:text-gray-900 cursor-pointer" title="Xem lịch sử (Ledger)"><History className="h-4 w-4" /></button>
                     {card.status !== "CANCELLED" && (
-                      <button onClick={() => cancelGiftCard(card.id)} className="rounded p-1.5 text-gray-500 hover:bg-red-50 hover:text-red-600" title="Hủy gift card"><Ban className="h-4 w-4" /></button>
+                      <button onClick={() => cancelGiftCard(card.id)} className="rounded p-1.5 text-gray-500 hover:bg-red-50 hover:text-red-600 cursor-pointer" title="Hủy gift card"><Ban className="h-4 w-4" /></button>
                     )}
                   </td>
                 </tr>
@@ -318,7 +301,7 @@ export default function AdminGiftCardsPage() {
                 <h3 className="text-lg font-bold text-gray-900">Lịch sử giao dịch (Ledger)</h3>
                 <p className="mt-1 text-sm text-gray-500">Mã thẻ: <span className="font-mono font-medium text-gray-900">{ledgerCard.code}</span></p>
               </div>
-              <button onClick={() => setLedgerCard(null)} className="rounded-full p-2 text-gray-400 hover:bg-gray-100 hover:text-gray-600"><XCircle className="h-5 w-5" /></button>
+              <button onClick={() => setLedgerCard(null)} className="rounded-full p-2 text-gray-400 hover:bg-gray-100 hover:text-gray-600 cursor-pointer"><XCircle className="h-5 w-5" /></button>
             </div>
             <div className="flex-1 overflow-auto p-5">
               {ledgerLoading ? (
@@ -327,7 +310,7 @@ export default function AdminGiftCardsPage() {
                 <div className="flex h-32 items-center justify-center text-sm text-gray-500">Không có giao dịch nào</div>
               ) : (
                 <div className="space-y-4">
-                  {ledgerData.map((tx) => (
+                  {ledgerData.map((tx: any) => (
                     <div key={tx.id} className="flex flex-col gap-2 rounded-lg border border-gray-100 bg-gray-50 p-4 sm:flex-row sm:items-center sm:justify-between">
                       <div>
                         <div className="flex items-center gap-2">

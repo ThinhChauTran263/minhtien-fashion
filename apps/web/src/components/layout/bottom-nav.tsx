@@ -10,7 +10,7 @@ import { cn } from "@/lib/utils";
 
 const tabs = [
   { href: "/", key: "home", icon: Home, match: (p: string) => p === "/" },
-  { href: "/products", key: "categories", icon: Grid, match: (p: string) => p.startsWith("/products") || p.startsWith("/ao-co") || p.startsWith("/san-pham") },
+  { href: "/san-pham", key: "categories", icon: Grid, match: (p: string) => p.startsWith("/san-pham") || p.startsWith("/ao-co") },
   { href: "/cart", key: "cart", icon: ShoppingBag, match: (p: string) => p.startsWith("/cart") || p.startsWith("/gio-hang") },
   { href: "/account", key: "account", icon: User, match: (p: string) => p.startsWith("/account") || p.startsWith("/login") || p.startsWith("/dang-nhap") },
 ] as const;

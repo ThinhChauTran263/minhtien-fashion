@@ -1,11 +1,11 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import { Gift, TrendingUp, TrendingDown, Loader2 } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { loyaltyApi } from "@/lib/api";
 import { formatPrice } from "@/lib/utils";
 import { formatDate } from "@/lib/customer-utils";
+import { useQuery } from "@tanstack/react-query";
 
 interface PointHistory {
   id: string;
@@ -17,21 +17,26 @@ interface PointHistory {
 
 export default function LoyaltyPointsPage() {
   const t = useTranslations("loyalty");
-  const [balance, setBalance] = useState(0);
-  const [discountValue, setDiscountValue] = useState(0);
-  const [history, setHistory] = useState<PointHistory[]>([]);
-  const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    Promise.all([loyaltyApi.getBalance(), loyaltyApi.getHistory(1, 50)])
-      .then(([balRes, histRes]) => {
-        setBalance(balRes.data.data.points);
-        setDiscountValue(balRes.data.data.discountValue);
-        setHistory(histRes.data.data.items);
-      })
-      .catch(() => {})
-      .finally(() => setLoading(false));
-  }, []);
+  const { data, isLoading: loading } = useQuery({
+    queryKey: ["account", "points"],
+    queryFn: async () => {
+      const [balRes, histRes] = await Promise.all([
+        loyaltyApi.getBalance(),
+        loyaltyApi.getHistory(1, 50)
+      ]);
+      return {
+        balance: balRes.data.data.points,
+        discountValue: balRes.data.data.discountValue,
+        history: histRes.data.data.items as PointHistory[],
+      };
+    },
+    staleTime: 60 * 1000,
+  });
+
+  const balance = data?.balance ?? 0;
+  const discountValue = data?.discountValue ?? 0;
+  const history = data?.history ?? [];
 
   if (loading) {
     return (

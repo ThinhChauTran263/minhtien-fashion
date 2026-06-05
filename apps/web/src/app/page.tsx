@@ -62,7 +62,7 @@ export default async function HomePage() {
             </Reveal>
             <Reveal direction="up" delay={0.28}>
               <div className="mt-8 flex flex-col gap-3 sm:flex-row">
-                <Link href="/products" className="btn-primary group">
+            <Link href="/san-pham" className="btn-primary group">
                   {t("heroShop")}
                   <ArrowRight className="ml-2 h-4 w-4 transition-transform duration-300 ease-luxury group-hover:translate-x-1" />
                 </Link>
@@ -153,7 +153,7 @@ export default async function HomePage() {
             <p className="overline-text">{t("featuredOverline")}</p>
             <h2 className="mt-2 text-display-md text-primary-950">{t("featuredTitle")}</h2>
           </div>
-          <Link href="/products" className="luxury-link">{t("viewAll")}</Link>
+            <Link href="/san-pham" className="luxury-link">{t("viewAll")}</Link>
         </Reveal>
         <StaggerGroup className="grid grid-cols-2 gap-4 md:grid-cols-4 md:gap-6">
           {featuredList.slice(0, 8).map((product: any) => (
@@ -172,7 +172,7 @@ export default async function HomePage() {
               <p className="overline-text">{t("newOverline")}</p>
               <h2 className="mt-2 text-display-md text-primary-950">{t("newTitle")}</h2>
             </div>
-            <Link href="/products?sort=newest" className="luxury-link">{t("viewAll")}</Link>
+            <Link href="/san-pham?sort=newest" className="luxury-link">{t("viewAll")}</Link>
           </Reveal>
           <StaggerGroup className="grid grid-cols-2 gap-4 md:grid-cols-4 md:gap-6">
             {newList.slice(0, 4).map((product: any) => (

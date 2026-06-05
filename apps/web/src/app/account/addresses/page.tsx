@@ -1,11 +1,12 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { toast } from "sonner";
 import { useTranslations } from "next-intl";
 import { userApi } from "@/lib/api";
 import { fullAddress } from "@/lib/customer-utils";
 import { Combobox } from "@/components/ui/combobox";
+import { useQuery, useMutation, useQueryClient, keepPreviousData } from "@tanstack/react-query";
 
 const emptyForm = { 
   format: "NEW" as "NEW" | "OLD",
@@ -17,57 +18,90 @@ const emptyForm = {
 };
 
 export default function AddressesPage() {
+  const queryClient = useQueryClient();
   const t = useTranslations("account");
   const tCommon = useTranslations("common");
-  const [addresses, setAddresses] = useState<any[]>([]);
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<any | null>(null);
   const [form, setForm] = useState(emptyForm);
 
-  const [provinces, setProvinces] = useState<any[]>([]);
-  const [wards, setWards] = useState<any[]>([]);
+  const { data: addresses = [] } = useQuery({
+    queryKey: ["account", "addresses"],
+    queryFn: async () => {
+      const { data } = await userApi.getAddresses();
+      return data.data ?? [];
+    },
+    staleTime: 60 * 1000,
+  });
 
-  const load = () => userApi.getAddresses().then(({ data }) => setAddresses(data.data ?? []));
+  const { data: provinces = [] } = useQuery({
+    queryKey: ["provinces"],
+    queryFn: async () => {
+      const res = await userApi.getProvinces();
+      return res.data?.data || [];
+    },
+    staleTime: Infinity,
+  });
 
-  useEffect(() => { 
-    load();
-    userApi.getProvinces().then((res) => setProvinces(res.data?.data || []));
-  }, []);
+  const { data: wards = [] } = useQuery({
+    queryKey: ["wards", form.provinceId],
+    queryFn: async () => {
+      if (!form.provinceId) return [];
+      const res = await userApi.getWardsByProvince(form.provinceId);
+      return res.data?.data || [];
+    },
+    enabled: form.format === "NEW" && !!form.provinceId,
+    placeholderData: keepPreviousData,
+    staleTime: Infinity,
+  });
 
-  useEffect(() => {
-    if (form.format === "NEW" && form.provinceId) {
-      userApi.getWardsByProvince(form.provinceId).then((res) => setWards(res.data?.data || []));
-    } else {
-      setWards([]);
-    }
-  }, [form.provinceId, form.format]);
-
-  const submit = async (event: React.FormEvent) => {
-    event.preventDefault();
-    try {
-      const payload = { ...form };
-      if (payload.format === "NEW") {
-        payload.district = ""; // Xóa dữ liệu huyện nếu là form mới
-      } else {
-        payload.provinceId = undefined;
-        payload.wardCode = undefined;
-      }
-
-      if (editing) await userApi.updateAddress(editing.id, payload);
-      else await userApi.addAddress(payload);
-
+  const saveMutation = useMutation({
+    mutationFn: (payload: any) => {
+      if (editing) return userApi.updateAddress(editing.id, payload);
+      return userApi.addAddress(payload);
+    },
+    onSuccess: () => {
       toast.success(editing ? t("addressUpdateSuccess") : t("addressSaveSuccess"));
       setOpen(false);
       setEditing(null);
       setForm(emptyForm);
-      load();
-    } catch (err: any) {
+      queryClient.invalidateQueries({ queryKey: ["account", "addresses"] });
+    },
+    onError: (err: any) => {
       toast.error(err.response?.data?.error || t("addressSaveError"));
     }
+  });
+
+  const updateMutation = useMutation({
+    mutationFn: ({ id, payload }: { id: string; payload: any }) => userApi.updateAddress(id, payload),
+    onSuccess: () => {
+      toast.success(t("addressDefaultSet"));
+      queryClient.invalidateQueries({ queryKey: ["account", "addresses"] });
+    }
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => userApi.deleteAddress(id),
+    onSuccess: () => {
+      toast.success(t("addressDeleted"));
+      queryClient.invalidateQueries({ queryKey: ["account", "addresses"] });
+    }
+  });
+
+  const submit = (event: React.FormEvent) => {
+    event.preventDefault();
+    const payload = { ...form };
+    if (payload.format === "NEW") {
+      payload.district = ""; // Xóa dữ liệu huyện nếu là form mới
+    } else {
+      payload.provinceId = undefined;
+      payload.wardCode = undefined;
+    }
+    saveMutation.mutate(payload);
   };
 
-  const provinceOptions = provinces.map(p => ({ id: p.id, label: p.name }));
-  const wardOptions = wards.map(w => ({ id: w.code, label: w.name, subLabel: w.districtName }));
+  const provinceOptions = provinces.map((p: any) => ({ id: p.id, label: p.name }));
+  const wardOptions = wards.map((w: any) => ({ id: w.code, label: w.name, subLabel: w.districtName }));
 
   return (
     <div>
@@ -88,7 +122,7 @@ export default function AddressesPage() {
 
       <div className="space-y-3">
         {addresses.length === 0 && <p className="text-sm text-primary-500">{t("addressesEmpty")}</p>}
-        {addresses.map((address) => (
+        {addresses.map((address: any) => (
           <div key={address.id} className="rounded-lg border border-primary-100 bg-white p-5">
             <div className="flex flex-col justify-between gap-4 md:flex-row md:items-start">
               <div>
@@ -141,11 +175,7 @@ export default function AddressesPage() {
                 {!address.isDefault && (
                   <button
                     type="button"
-                    onClick={async () => {
-                      await userApi.updateAddress(address.id, { isDefault: true });
-                      toast.success(t("addressDefaultSet"));
-                      load();
-                    }}
+                    onClick={() => updateMutation.mutate({ id: address.id, payload: { isDefault: true } })}
                     className="btn-outline px-3 py-1.5 text-sm"
                   >
                     {t("setDefault")}
@@ -153,11 +183,7 @@ export default function AddressesPage() {
                 )}
                 <button
                   type="button"
-                  onClick={async () => {
-                    await userApi.deleteAddress(address.id);
-                    toast.success(t("addressDeleted"));
-                    load();
-                  }}
+                  onClick={() => deleteMutation.mutate(address.id)}
                   className="btn-outline px-3 py-1.5 text-sm text-red-600"
                 >
                   {t("delete")}
@@ -268,7 +294,7 @@ export default function AddressesPage() {
               <button type="button" onClick={() => setOpen(false)} className="btn-outline px-4 py-2 text-sm">
                 {tCommon("cancel")}
               </button>
-              <button className="btn-primary px-4 py-2 text-sm">{t("addressSave")}</button>
+              <button type="submit" disabled={saveMutation.isPending} className="btn-primary px-4 py-2 text-sm">{t("addressSave")}</button>
             </div>
           </form>
         </div>

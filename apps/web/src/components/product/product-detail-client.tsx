@@ -2,13 +2,15 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Check, ShoppingBag } from "lucide-react";
+import { Check, Heart, Loader2, ShoppingBag } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { toNumber } from "@/lib/customer-utils";
 import { formatPrice } from "@/lib/utils";
 import { useCartMutations } from "@/hooks/use-cart-mutations";
 import { useAuthStore } from "@/stores/auth-store";
+import { userApi } from "@/lib/api";
 import dynamic from "next/dynamic";
 
 const SizeGuideModal = dynamic(() => import("./size-guide-modal").then(mod => mod.SizeGuideModal), { 
@@ -42,8 +44,9 @@ interface ProductDetail {
 export function ProductDetailClient({ product }: { product: ProductDetail }) {
   const t = useTranslations("productDetail");
   const router = useRouter();
+  const queryClient = useQueryClient();
   const { addCartItem } = useCartMutations();
-  const { isHydrated, hydrate } = useAuthStore();
+  const { isAuthenticated, isHydrated, hydrate } = useAuthStore();
   const firstAvailable = product.variants.find((v) => v.stock > 0) ?? product.variants[0];
   const [selectedColor, setSelectedColor] = useState<string | null>(firstAvailable?.color ?? null);
   const [selectedSize, setSelectedSize] = useState<string | null>(firstAvailable?.size ?? null);
@@ -75,6 +78,36 @@ export function ProductDetailClient({ product }: { product: ProductDetail }) {
   const selectedVariant = product.variants.find((v) => v.color === selectedColor && v.size === selectedSize);
   const price = toNumber(selectedVariant?.price ?? product.salePrice ?? product.basePrice);
 
+  const { data: wishlistItems = [], isFetching: isWishlistLoading } = useQuery({
+    queryKey: ["account", "wishlist"],
+    queryFn: async () => {
+      const { data } = await userApi.getWishlist();
+      return data.data ?? [];
+    },
+    enabled: isHydrated && isAuthenticated,
+    staleTime: 60 * 1000,
+  });
+
+  const isWishlisted = wishlistItems.some((item: any) => item.product?.id === product.id || item.productId === product.id);
+
+  const wishlistMutation = useMutation({
+    mutationFn: async () => {
+      if (isWishlisted) {
+        await userApi.removeFromWishlist(product.id);
+        return false;
+      }
+      await userApi.addToWishlist(product.id);
+      return true;
+    },
+    onSuccess: (addedToWishlist) => {
+      queryClient.invalidateQueries({ queryKey: ["account", "wishlist"] });
+      toast.success(addedToWishlist ? t("favoriteAdded") : t("favoriteRemoved"));
+    },
+    onError: () => {
+      toast.error(t("favoriteError"));
+    },
+  });
+
   const handleAddToCart = async () => {
     if (!selectedVariant || selectedVariant.stock === 0 || isAdding) return;
 
@@ -84,7 +117,7 @@ export function ProductDetailClient({ product }: { product: ProductDetail }) {
 
     if (!useAuthStore.getState().isAuthenticated) {
       toast.info("Vui lòng đăng nhập để thêm sản phẩm vào giỏ hàng.");
-      router.push(`/login?next=${encodeURIComponent(`/products/${product.slug}`)}`);
+      router.push(`/dang-nhap?next=${encodeURIComponent(`/san-pham/${product.slug}`)}`);
       return;
     }
 
@@ -113,6 +146,20 @@ export function ProductDetailClient({ product }: { product: ProductDetail }) {
     });
     window.setTimeout(() => setIsAdding(false), 350);
     window.setTimeout(() => setAdded(false), 1800);
+  };
+
+  const handleToggleWishlist = async () => {
+    if (!isHydrated) {
+      await hydrate();
+    }
+
+    if (!useAuthStore.getState().isAuthenticated) {
+      toast.info(t("favoriteLoginRequired"));
+      router.push(`/dang-nhap?next=${encodeURIComponent(`/san-pham/${product.slug}`)}`);
+      return;
+    }
+
+    wishlistMutation.mutate();
   };
 
   const images = product.images.length ? product.images : [product.thumbnail];
@@ -188,24 +235,45 @@ export function ProductDetailClient({ product }: { product: ProductDetail }) {
 
         <SizeGuideModal open={showSizeGuide} onClose={() => setShowSizeGuide(false)} categoryId={product.categoryId} />
 
-        <button
-          ref={addToCartRef}
-          type="button"
-          onClick={handleAddToCart}
-          disabled={!selectedVariant || selectedVariant.stock === 0 || isAdding}
-          aria-busy={isAdding}
-          className={`btn-primary mb-4 w-full cursor-pointer transition-transform ${isAdding ? "scale-[0.99] opacity-80" : ""}`}
-        >
-          {added ? (
-            <>
-              <Check className="mr-2 h-5 w-5" /> {t("added")}
-            </>
-          ) : (
-            <>
-              <ShoppingBag className="mr-2 h-5 w-5" /> {t("addToCart")}
-            </>
-          )}
-        </button>
+        <div className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-[1fr_auto]">
+          <button
+            ref={addToCartRef}
+            type="button"
+            onClick={handleAddToCart}
+            disabled={!selectedVariant || selectedVariant.stock === 0 || isAdding}
+            aria-busy={isAdding}
+            className={`btn-primary w-full cursor-pointer transition-transform ${isAdding ? "scale-[0.99] opacity-80" : ""}`}
+          >
+            {added ? (
+              <>
+                <Check className="mr-2 h-5 w-5" /> {t("added")}
+              </>
+            ) : (
+              <>
+                <ShoppingBag className="mr-2 h-5 w-5" /> {t("addToCart")}
+              </>
+            )}
+          </button>
+          <button
+            type="button"
+            onClick={handleToggleWishlist}
+            disabled={isWishlistLoading || wishlistMutation.isPending}
+            aria-pressed={isWishlisted}
+            aria-busy={isWishlistLoading || wishlistMutation.isPending}
+            className={`inline-flex min-h-[48px] cursor-pointer items-center justify-center gap-2 rounded-button border px-5 py-3 text-sm font-semibold transition-colors disabled:cursor-wait disabled:opacity-70 ${
+              isWishlisted
+                ? "border-red-200 bg-red-50 text-red-600 hover:bg-red-100"
+                : "border-primary-200 bg-white text-primary-800 hover:border-primary-400 hover:bg-primary-50"
+            }`}
+          >
+            {isWishlistLoading || wishlistMutation.isPending ? (
+              <Loader2 className="h-5 w-5 animate-spin" />
+            ) : (
+              <Heart className={`h-5 w-5 ${isWishlisted ? "fill-current" : ""}`} />
+            )}
+            {isWishlisted ? t("favorited") : t("favorite")}
+          </button>
+        </div>
         <p className="sr-only" aria-live="polite">{liveMessage}</p>
 
         <div className="mt-6 border-t pt-6">
@@ -226,6 +294,24 @@ export function ProductDetailClient({ product }: { product: ProductDetail }) {
             <p className="truncate text-sm font-medium">{product.name}</p>
             <p className="text-sm font-semibold text-primary-900">{formatPrice(price)}</p>
           </div>
+          <button
+            type="button"
+            onClick={handleToggleWishlist}
+            disabled={isWishlistLoading || wishlistMutation.isPending}
+            aria-label={isWishlisted ? t("favorited") : t("favorite")}
+            aria-pressed={isWishlisted}
+            className={`flex h-11 w-11 shrink-0 cursor-pointer items-center justify-center rounded-full border transition-colors disabled:cursor-wait disabled:opacity-70 ${
+              isWishlisted
+                ? "border-red-200 bg-red-50 text-red-600"
+                : "border-primary-200 bg-white text-primary-800 hover:bg-primary-50"
+            }`}
+          >
+            {isWishlistLoading || wishlistMutation.isPending ? (
+              <Loader2 className="h-5 w-5 animate-spin" />
+            ) : (
+              <Heart className={`h-5 w-5 ${isWishlisted ? "fill-current" : ""}`} />
+            )}
+          </button>
           <button
             type="button"
             onClick={handleAddToCart}

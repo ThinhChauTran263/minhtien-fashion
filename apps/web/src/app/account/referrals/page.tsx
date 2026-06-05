@@ -1,30 +1,37 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Copy, Check, Gift, Loader2, Users } from "lucide-react";
 import { toast } from "sonner";
 import { referralApi } from "@/lib/api";
 import { formatDate } from "@/lib/customer-utils";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 
 export default function ReferralPage() {
-  const [code, setCode] = useState("");
-  const [stats, setStats] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient();
   const [copied, setCopied] = useState(false);
   const [applyCode, setApplyCode] = useState("");
 
+  const { data, isLoading: loading } = useQuery({
+    queryKey: ["account", "referrals"],
+    queryFn: async () => {
+      const [codeRes, statsRes] = await Promise.all([
+        referralApi.myCode(),
+        referralApi.stats()
+      ]);
+      return {
+        code: codeRes.data.data.code,
+        stats: statsRes.data.data,
+      };
+    },
+    staleTime: 60 * 1000,
+  });
+
+  const code = data?.code ?? "";
+  const stats = data?.stats ?? null;
+
   const siteUrl = typeof window !== "undefined" ? window.location.origin : "";
   const shareLink = `${siteUrl}?ref=${code}`;
-
-  useEffect(() => {
-    Promise.all([referralApi.myCode(), referralApi.stats()])
-      .then(([codeRes, statsRes]) => {
-        setCode(codeRes.data.data.code);
-        setStats(statsRes.data.data);
-      })
-      .catch(() => {})
-      .finally(() => setLoading(false));
-  }, []);
 
   const copy = () => {
     navigator.clipboard.writeText(shareLink);
@@ -33,15 +40,21 @@ export default function ReferralPage() {
     setTimeout(() => setCopied(false), 2000);
   };
 
-  const handleApply = async (e: React.FormEvent) => {
-    e.preventDefault();
-    try {
-      await referralApi.apply(applyCode);
+  const applyMutation = useMutation({
+    mutationFn: (codeStr: string) => referralApi.apply(codeStr),
+    onSuccess: () => {
       toast.success("Áp dụng mã thành công! Bạn nhận được voucher 30K.");
       setApplyCode("");
-    } catch (err: any) {
+      queryClient.invalidateQueries({ queryKey: ["account", "referrals"] });
+    },
+    onError: (err: any) => {
       toast.error(err.response?.data?.error || "Mã không hợp lệ");
     }
+  });
+
+  const handleApply = (e: React.FormEvent) => {
+    e.preventDefault();
+    applyMutation.mutate(applyCode);
   };
 
   if (loading) {
@@ -97,7 +110,7 @@ export default function ReferralPage() {
           <h3 className="font-medium text-gray-900 mb-2">Có mã giới thiệu?</h3>
           <form onSubmit={handleApply} className="flex gap-2">
             <input value={applyCode} onChange={(e) => setApplyCode(e.target.value)} placeholder="Nhập mã bạn bè" className="input flex-1" />
-            <button type="submit" className="btn-primary px-4 cursor-pointer">Áp dụng</button>
+            <button type="submit" disabled={applyMutation.isPending} className="btn-primary px-4 cursor-pointer">Áp dụng</button>
           </form>
         </div>
       )}

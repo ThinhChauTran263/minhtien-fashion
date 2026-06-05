@@ -1,6 +1,6 @@
-﻿"use client";
+"use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useState } from "react";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { Plus, Search, Pencil, Trash2 } from "lucide-react";
@@ -8,6 +8,7 @@ import { adminApi } from "@/lib/api";
 import { formatPrice } from "@/lib/utils";
 import { DataTable, type Column } from "@/components/admin/data-table";
 import { ConfirmDialog } from "@/components/admin/confirm-dialog";
+import { useQuery, useMutation, useQueryClient, keepPreviousData } from "@tanstack/react-query";
 
 interface Product {
   id: string;
@@ -23,33 +24,37 @@ interface Product {
 export default function AdminProductsPage() {
   const t = useTranslations("admin.products");
   const tAdmin = useTranslations("admin");
-  const [products, setProducts] = useState<Product[]>([]);
+  const queryClient = useQueryClient();
+
   const [page, setPage] = useState(1);
-  const [totalPages, setTotalPages] = useState(1);
   const [search, setSearch] = useState("");
   const [searchInput, setSearchInput] = useState("");
-  const [loading, setLoading] = useState(true);
   const [deleteId, setDeleteId] = useState<string | null>(null);
-  const [deleting, setDeleting] = useState(false);
 
-  const fetchProducts = useCallback(async () => {
-    setLoading(true);
-    try {
+  // Fetch products with React Query
+  const { data, isLoading } = useQuery({
+    queryKey: ["admin", "products", { page, search }],
+    queryFn: async () => {
       const params: Record<string, any> = { page, limit: 20 };
       if (search) params.q = search;
       const res = await adminApi.getProducts(params);
-      setProducts(res.data.data.items);
-      setTotalPages(res.data.data.totalPages);
-    } catch {
-      // silent
-    } finally {
-      setLoading(false);
-    }
-  }, [page, search]);
+      return res.data.data;
+    },
+    placeholderData: keepPreviousData,
+    staleTime: 60 * 1000, // Cache for 1 minute to avoid re-fetching on immediate back navigation
+  });
 
-  useEffect(() => {
-    fetchProducts();
-  }, [fetchProducts]);
+  const products = data?.items || [];
+  const totalPages = data?.totalPages || 1;
+
+  // Delete mutation
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => adminApi.deleteProduct(id),
+    onSuccess: () => {
+      setDeleteId(null);
+      queryClient.invalidateQueries({ queryKey: ["admin", "products"] });
+    },
+  });
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
@@ -57,18 +62,9 @@ export default function AdminProductsPage() {
     setSearch(searchInput);
   };
 
-  const handleDelete = async () => {
+  const handleDelete = () => {
     if (!deleteId) return;
-    setDeleting(true);
-    try {
-      await adminApi.deleteProduct(deleteId);
-      setDeleteId(null);
-      fetchProducts();
-    } catch {
-      // silent
-    } finally {
-      setDeleting(false);
-    }
+    deleteMutation.mutate(deleteId);
   };
 
   const columns: Column<Product>[] = [
@@ -165,7 +161,7 @@ export default function AdminProductsPage() {
         </button>
       </form>
 
-      {loading ? (
+      {isLoading ? (
         <div className="flex items-center justify-center h-40">
           <div className="animate-pulse text-gray-400">{tAdmin("loading")}</div>
         </div>
@@ -180,7 +176,7 @@ export default function AdminProductsPage() {
         confirmLabel={t("deleteConfirm")}
         onConfirm={handleDelete}
         onCancel={() => setDeleteId(null)}
-        loading={deleting}
+        loading={deleteMutation.isPending}
       />
     </div>
   );

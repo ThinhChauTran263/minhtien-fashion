@@ -4,26 +4,32 @@ import { useState } from "react";
 import { toast } from "sonner";
 import { useTranslations } from "next-intl";
 import { userApi } from "@/lib/api";
+import { useMutation } from "@tanstack/react-query";
 
 export default function ChangePasswordPage() {
   const t = useTranslations("account");
   const [form, setForm] = useState({ currentPassword: "", newPassword: "", confirmPassword: "" });
-  const [loading, setLoading] = useState(false);
 
-  const submit = async (event: React.FormEvent) => {
+  const passwordMutation = useMutation({
+    mutationFn: (payload: any) => userApi.changePassword(payload),
+    onSuccess: () => {
+      toast.success(t("passwordUpdateSuccess"));
+      setForm({ currentPassword: "", newPassword: "", confirmPassword: "" });
+    },
+    onError: (err: any) => {
+      toast.error(err.response?.data?.error || t("passwordUpdateError"));
+    }
+  });
+
+  const submit = (event: React.FormEvent) => {
     event.preventDefault();
     if (form.newPassword.length < 6) return toast.error(t("passwordMin"));
     if (form.newPassword !== form.confirmPassword) return toast.error(t("passwordMismatch"));
-    setLoading(true);
-    try {
-      await userApi.changePassword({ currentPassword: form.currentPassword, newPassword: form.newPassword });
-      toast.success(t("passwordUpdateSuccess"));
-      setForm({ currentPassword: "", newPassword: "", confirmPassword: "" });
-    } catch (err: any) {
-      toast.error(err.response?.data?.error || t("passwordUpdateError"));
-    } finally {
-      setLoading(false);
-    }
+    
+    passwordMutation.mutate({ 
+      currentPassword: form.currentPassword, 
+      newPassword: form.newPassword 
+    });
   };
 
   return (
@@ -56,8 +62,8 @@ export default function ChangePasswordPage() {
             className="input"
           />
         </div>
-        <button disabled={loading} className="btn-primary mt-6 w-full">
-          {loading ? t("passwordSaving") : t("passwordSubmit")}
+        <button disabled={passwordMutation.isPending} className="btn-primary mt-6 w-full">
+          {passwordMutation.isPending ? t("passwordSaving") : t("passwordSubmit")}
         </button>
       </form>
     </div>

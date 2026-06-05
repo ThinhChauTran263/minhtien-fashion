@@ -1,11 +1,12 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useState } from "react";
 import { Plus, Pencil, Trash2, X } from "lucide-react";
 import { adminApi } from "@/lib/api";
 import { formatPrice, formatDate } from "@/lib/utils";
 import { DataTable, type Column } from "@/components/admin/data-table";
 import { ConfirmDialog } from "@/components/admin/confirm-dialog";
+import { useQuery, useMutation, useQueryClient, keepPreviousData } from "@tanstack/react-query";
 
 interface Voucher {
   id: string;
@@ -44,34 +45,50 @@ const defaultForm = {
 };
 
 export default function AdminVoucherPage() {
-  const [vouchers, setVouchers] = useState<Voucher[]>([]);
+  const queryClient = useQueryClient();
   const [page, setPage] = useState(1);
-  const [totalPages, setTotalPages] = useState(1);
-  const [loading, setLoading] = useState(true);
   const [deleteId, setDeleteId] = useState<string | null>(null);
-  const [deleting, setDeleting] = useState(false);
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState(defaultForm);
-  const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState("");
 
-  const fetchVouchers = useCallback(async () => {
-    setLoading(true);
-    try {
+  const { data, isLoading } = useQuery({
+    queryKey: ["admin", "vouchers", { page }],
+    queryFn: async () => {
       const res = await adminApi.getVouchers({ page, limit: 20 });
-      setVouchers(res.data.data.items);
-      setTotalPages(res.data.data.totalPages);
-    } catch {
-      // silent
-    } finally {
-      setLoading(false);
-    }
-  }, [page]);
+      return res.data.data;
+    },
+    placeholderData: keepPreviousData,
+    staleTime: 60 * 1000,
+  });
 
-  useEffect(() => {
-    fetchVouchers();
-  }, [fetchVouchers]);
+  const vouchers = data?.items || [];
+  const totalPages = data?.totalPages || 1;
+
+  const saveMutation = useMutation({
+    mutationFn: async (payload: any) => {
+      if (editingId) {
+        return adminApi.updateVoucher(editingId, payload);
+      }
+      return adminApi.createVoucher(payload);
+    },
+    onSuccess: () => {
+      setShowForm(false);
+      queryClient.invalidateQueries({ queryKey: ["admin", "vouchers"] });
+    },
+    onError: (err: any) => {
+      setFormError(err.response?.data?.message || "Có lỗi xảy ra");
+    }
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => adminApi.deleteVoucher(id),
+    onSuccess: () => {
+      setDeleteId(null);
+      queryClient.invalidateQueries({ queryKey: ["admin", "vouchers"] });
+    }
+  });
 
   const openCreate = () => {
     setEditingId(null);
@@ -99,46 +116,25 @@ export default function AdminVoucherPage() {
     setShowForm(true);
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    setSubmitting(true);
     setFormError("");
-    try {
-      const payload = {
-        ...form,
-        value: Number(form.value),
-        minOrder: form.minOrder ? Number(form.minOrder) : undefined,
-        maxDiscount: form.maxDiscount ? Number(form.maxDiscount) : undefined,
-        usageLimit: form.usageLimit ? Number(form.usageLimit) : undefined,
-        perUserLimit: Number(form.perUserLimit),
-      };
+    
+    const payload = {
+      ...form,
+      value: Number(form.value),
+      minOrder: form.minOrder ? Number(form.minOrder) : undefined,
+      maxDiscount: form.maxDiscount ? Number(form.maxDiscount) : undefined,
+      usageLimit: form.usageLimit ? Number(form.usageLimit) : undefined,
+      perUserLimit: Number(form.perUserLimit),
+    };
 
-      if (editingId) {
-        await adminApi.updateVoucher(editingId, payload);
-      } else {
-        await adminApi.createVoucher(payload);
-      }
-      setShowForm(false);
-      fetchVouchers();
-    } catch (err: any) {
-      setFormError(err.response?.data?.message || "Có lỗi xảy ra");
-    } finally {
-      setSubmitting(false);
-    }
+    saveMutation.mutate(payload);
   };
 
-  const handleDelete = async () => {
+  const handleDelete = () => {
     if (!deleteId) return;
-    setDeleting(true);
-    try {
-      await adminApi.deleteVoucher(deleteId);
-      setDeleteId(null);
-      fetchVouchers();
-    } catch {
-      // silent
-    } finally {
-      setDeleting(false);
-    }
+    deleteMutation.mutate(deleteId);
   };
 
   const columns: Column<Voucher>[] = [
@@ -170,7 +166,7 @@ export default function AdminVoucherPage() {
     {
       key: "usage",
       label: "Lượt dùng",
-      render: (item) => `${item.usageCount}/${item.usageLimit || "âˆž"}`,
+      render: (item) => `${item.usageCount}/${item.usageLimit || "∞"}`,
     },
     {
       key: "expiresAt",
@@ -221,7 +217,7 @@ export default function AdminVoucherPage() {
         </button>
       </div>
 
-      {loading ? (
+      {isLoading ? (
         <div className="flex items-center justify-center h-40">
           <div className="animate-pulse text-gray-400">Đang tải...</div>
         </div>
@@ -369,8 +365,8 @@ export default function AdminVoucherPage() {
               </label>
 
               <div className="flex items-center gap-3 pt-2">
-                <button type="submit" disabled={submitting} className="btn-primary cursor-pointer">
-                  {submitting ? "Đang lưu..." : editingId ? "Cập nhật" : "Tạo voucher"}
+                <button type="submit" disabled={saveMutation.isPending} className="btn-primary cursor-pointer">
+                  {saveMutation.isPending ? "Đang lưu..." : editingId ? "Cập nhật" : "Tạo voucher"}
                 </button>
                 <button type="button" onClick={() => setShowForm(false)} className="btn-outline cursor-pointer">
                   Huỷ
@@ -388,7 +384,7 @@ export default function AdminVoucherPage() {
         message="Bạn có chắc muốn xóa voucher này? Hành động không thể hoàn tác."
         onConfirm={handleDelete}
         onCancel={() => setDeleteId(null)}
-        loading={deleting}
+        loading={deleteMutation.isPending}
       />
     </div>
   );

@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { toast } from "sonner";
 import { adminApi } from "@/lib/api";
 import { formatDate, formatPrice } from "@/lib/utils";
+import { useQuery, useMutation, useQueryClient, keepPreviousData } from "@tanstack/react-query";
 
 const statuses = ["", "PENDING", "APPROVED", "REJECTED", "RECEIVED", "REFUNDED", "COMPLETED"];
 const labels: Record<string, string> = {
@@ -16,19 +17,21 @@ const labels: Record<string, string> = {
 };
 
 export default function AdminReturnsPage() {
-  const [returns, setReturns] = useState<any[]>([]);
+  const queryClient = useQueryClient();
   const [status, setStatus] = useState("");
   const [selected, setSelected] = useState<any | null>(null);
   const [adminNote, setAdminNote] = useState("");
   const [qcGrades, setQcGrades] = useState<Record<string, string>>({});
 
-  const load = () => {
-    adminApi.getReturns(status ? { status } : undefined).then((res) => setReturns(res.data.data));
-  };
-
-  useEffect(() => {
-    load();
-  }, [status]);
+  const { data: returns = [], isLoading } = useQuery({
+    queryKey: ["admin", "returns", { status }],
+    queryFn: async () => {
+      const res = await adminApi.getReturns(status ? { status } : undefined);
+      return res.data.data || [];
+    },
+    placeholderData: keepPreviousData,
+    staleTime: 60 * 1000,
+  });
 
   const selectReturn = (item: any) => {
     setSelected(item);
@@ -40,36 +43,42 @@ export default function AdminReturnsPage() {
     setQcGrades(initialGrades);
   };
 
-  const updateStatus = async (id: string, nextStatus: string) => {
-    try {
-      let gradesPayload = undefined;
-      if (nextStatus === "REFUNDED" || nextStatus === "COMPLETED") {
-        gradesPayload = selected.items?.map((item: any) => {
-          const orderItem = selected.order?.items?.find((o: any) => o.id === item.orderItemId || (item.orderItemProductSlug && o.productSlug === item.orderItemProductSlug));
-          const effectiveItemId = item.orderItemId || orderItem?.id;
-          return {
-            orderItemId: effectiveItemId,
-            variantId: orderItem?.variantId,
-            quantity: item.quantity,
-            grade: qcGrades[effectiveItemId] || "A",
-            note: "Kiểm định từ giao diện admin",
-          };
-        });
-      }
-
-      await adminApi.updateReturn(id, {
+  const updateStatusMutation = useMutation({
+    mutationFn: ({ id, nextStatus, gradesPayload }: { id: string; nextStatus: string; gradesPayload: any }) => 
+      adminApi.updateReturn(id, {
         status: nextStatus,
         adminNote,
         qcGrades: gradesPayload
-      });
+      }),
+    onSuccess: () => {
       toast.success("Đã cập nhật yêu cầu");
       setSelected(null);
       setAdminNote("");
       setQcGrades({});
-      load();
-    } catch {
+      queryClient.invalidateQueries({ queryKey: ["admin", "returns"] });
+    },
+    onError: () => {
       toast.error("Không cập nhật được yêu cầu");
     }
+  });
+
+  const updateStatus = (id: string, nextStatus: string) => {
+    let gradesPayload = undefined;
+    if (nextStatus === "REFUNDED" || nextStatus === "COMPLETED") {
+      gradesPayload = selected.items?.map((item: any) => {
+        const orderItem = selected.order?.items?.find((o: any) => o.id === item.orderItemId || (item.orderItemProductSlug && o.productSlug === item.orderItemProductSlug));
+        const effectiveItemId = item.orderItemId || orderItem?.id;
+        return {
+          orderItemId: effectiveItemId,
+          variantId: orderItem?.variantId,
+          quantity: item.quantity,
+          grade: qcGrades[effectiveItemId] || "A",
+          note: "Kiểm định từ giao diện admin",
+        };
+      });
+    }
+
+    updateStatusMutation.mutate({ id, nextStatus, gradesPayload });
   };
 
   return (
@@ -81,35 +90,46 @@ export default function AdminReturnsPage() {
 
       <div className="flex flex-wrap gap-2">
         {statuses.map((item) => (
-          <button key={item || "all"} onClick={() => setStatus(item)} className={`rounded px-3 py-2 text-sm ${status === item ? "bg-primary-800 text-white" : "border border-gray-200 bg-white text-gray-600"}`}>
+          <button key={item || "all"} onClick={() => setStatus(item)} className={`rounded px-3 py-2 text-sm cursor-pointer ${status === item ? "bg-primary-800 text-white" : "border border-gray-200 bg-white text-gray-600 hover:bg-gray-50"}`}>
             {item ? labels[item] : "Tất cả"}
           </button>
         ))}
       </div>
 
-      <div className="overflow-x-auto rounded-lg border border-gray-200 bg-white">
-        <table className="w-full min-w-[900px] text-sm">
-          <thead className="bg-gray-50 text-left">
-            <tr>
-              {["Mã", "Khách", "Đơn", "Loại", "Lý do", "Status", "Ngày", ""].map((head) => <th key={head} className="p-3 font-semibold">{head}</th>)}
-            </tr>
-          </thead>
-          <tbody>
-            {returns.map((item) => (
-              <tr key={item.id} className="border-t border-gray-100">
-                <td className="p-3 font-medium">{item.code}</td>
-                <td className="p-3">{item.user?.name}<br /><span className="text-xs text-gray-500">{item.user?.email}</span></td>
-                <td className="p-3">{item.order?.code}</td>
-                <td className="p-3">{item.type === "RETURN" ? "Trả" : "Đổi"}</td>
-                <td className="p-3">{item.reason}</td>
-                <td className="p-3"><span className="rounded bg-gray-100 px-2 py-1 text-xs">{labels[item.status] ?? item.status}</span></td>
-                <td className="p-3 text-xs text-gray-500">{formatDate(item.createdAt)}</td>
-                <td className="p-3"><button onClick={() => selectReturn(item)} className="text-primary-800 hover:underline">Chi tiết</button></td>
+      {isLoading ? (
+        <div className="flex items-center justify-center h-40 bg-white rounded-lg border border-gray-200">
+          <div className="animate-pulse text-gray-400">Đang tải...</div>
+        </div>
+      ) : (
+        <div className="overflow-x-auto rounded-lg border border-gray-200 bg-white">
+          <table className="w-full min-w-[900px] text-sm">
+            <thead className="bg-gray-50 text-left">
+              <tr>
+                {["Mã", "Khách", "Đơn", "Loại", "Lý do", "Status", "Ngày", ""].map((head) => <th key={head} className="p-3 font-semibold">{head}</th>)}
               </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+            </thead>
+            <tbody>
+              {returns.map((item: any) => (
+                <tr key={item.id} className="border-t border-gray-100">
+                  <td className="p-3 font-medium">{item.code}</td>
+                  <td className="p-3">{item.user?.name}<br /><span className="text-xs text-gray-500">{item.user?.email}</span></td>
+                  <td className="p-3">{item.order?.code}</td>
+                  <td className="p-3">{item.type === "RETURN" ? "Trả" : "Đổi"}</td>
+                  <td className="p-3">{item.reason}</td>
+                  <td className="p-3"><span className="rounded bg-gray-100 px-2 py-1 text-xs">{labels[item.status] ?? item.status}</span></td>
+                  <td className="p-3 text-xs text-gray-500">{formatDate(item.createdAt)}</td>
+                  <td className="p-3"><button onClick={() => selectReturn(item)} className="text-primary-800 hover:underline cursor-pointer">Chi tiết</button></td>
+                </tr>
+              ))}
+              {returns.length === 0 && (
+                <tr>
+                  <td colSpan={8} className="p-8 text-center text-gray-500">Không có yêu cầu đổi trả nào</td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      )}
 
       {selected && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
@@ -183,11 +203,11 @@ export default function AdminReturnsPage() {
             <textarea value={adminNote} onChange={(e) => setAdminNote(e.target.value)} placeholder="Ghi chú admin" className="mt-4 min-h-24 w-full rounded border border-gray-200 px-3 py-2 text-sm" />
             <div className="mt-4 flex flex-wrap gap-2">
               {["APPROVED", "REJECTED", "RECEIVED", "REFUNDED", "COMPLETED"].map((next) => (
-                <button key={next} onClick={() => updateStatus(selected.id, next)} className="rounded bg-primary-800 px-3 py-2 text-sm text-white">
+                <button key={next} onClick={() => updateStatus(selected.id, next)} disabled={updateStatusMutation.isPending} className="rounded bg-primary-800 px-3 py-2 text-sm text-white cursor-pointer disabled:opacity-60 hover:bg-primary-900 transition-colors">
                   {labels[next]}
                 </button>
               ))}
-              <button onClick={() => setSelected(null)} className="rounded border border-gray-200 px-3 py-2 text-sm">Đóng</button>
+              <button onClick={() => setSelected(null)} className="rounded border border-gray-200 px-3 py-2 text-sm cursor-pointer hover:bg-gray-50 transition-colors">Đóng</button>
             </div>
           </div>
         </div>

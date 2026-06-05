@@ -1,7 +1,7 @@
 "use client";
 
 import { FormEvent, useEffect, useRef, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation } from "@tanstack/react-query";
 import { Heart, Package, Truck, Upload, X } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
@@ -24,8 +24,6 @@ export default function AccountPage() {
   const setUser = useAuthStore((state) => state.setUser);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [form, setForm] = useState({ name: "", phone: "", avatar: "" });
-  const [saving, setSaving] = useState(false);
-  const [uploading, setUploading] = useState(false);
 
   const { data, refetch } = useQuery({
     queryKey: ["account", "profile-overview"],
@@ -62,32 +60,46 @@ export default function AccountPage() {
     });
   }, [profile]);
 
-  const submit = async (event: FormEvent<HTMLFormElement>) => {
+  const profileMutation = useMutation({
+    mutationFn: (payload: any) => userApi.updateProfile(payload),
+    onSuccess: (res) => {
+      setUser(res.data.data);
+      refetch();
+      toast.success(t("profileUpdateSuccess"));
+    },
+    onError: (err: any) => {
+      toast.error(err.response?.data?.error || t("profileUpdateError"));
+    }
+  });
+
+  const uploadMutation = useMutation({
+    mutationFn: (file: File) => uploadApi.uploadPublicImage(file),
+    onSuccess: (res) => {
+      setForm((current) => ({ ...current, avatar: res.data.data.url }));
+      toast.success(t("avatarUploadSuccess"));
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    },
+    onError: (err: any) => {
+      toast.error(err.response?.data?.error || t("avatarUploadError"));
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  });
+
+  const submit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!form.name.trim()) {
       toast.error(t("profileNameRequired"));
       return;
     }
 
-    setSaving(true);
-    try {
-      const payload = {
-        name: form.name.trim(),
-        phone: form.phone.trim() || undefined,
-        avatar: form.avatar.trim() || null,
-      };
-      const { data: response } = await userApi.updateProfile(payload);
-      setUser(response.data);
-      await refetch();
-      toast.success(t("profileUpdateSuccess"));
-    } catch (err: any) {
-      toast.error(err.response?.data?.error || t("profileUpdateError"));
-    } finally {
-      setSaving(false);
-    }
+    profileMutation.mutate({
+      name: form.name.trim(),
+      phone: form.phone.trim() || undefined,
+      avatar: form.avatar.trim() || null,
+    });
   };
 
-  const uploadAvatar = async (file?: File | null) => {
+  const uploadAvatar = (file?: File | null) => {
     if (!file) return;
     if (!file.type.startsWith("image/")) {
       toast.error(t("avatarInvalidType"));
@@ -97,21 +109,12 @@ export default function AccountPage() {
       toast.error(t("avatarTooLarge"));
       return;
     }
-
-    setUploading(true);
-    try {
-      const { data: response } = await uploadApi.uploadPublicImage(file);
-      setForm((current) => ({ ...current, avatar: response.data.url }));
-      toast.success(t("avatarUploadSuccess"));
-    } catch (err: any) {
-      toast.error(err.response?.data?.error || t("avatarUploadError"));
-    } finally {
-      setUploading(false);
-      if (fileInputRef.current) fileInputRef.current.value = "";
-    }
+    uploadMutation.mutate(file);
   };
 
   const avatarPreview = form.avatar.trim();
+  const saving = profileMutation.isPending;
+  const uploading = uploadMutation.isPending;
 
   return (
     <div>

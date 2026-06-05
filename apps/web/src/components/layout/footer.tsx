@@ -31,7 +31,7 @@ export function Footer() {
             <ul className="space-y-2 text-sm text-primary-300">
               <li><Link href="/ao-co-co" className="hover:text-white">{t("collared")}</Link></li>
               <li><Link href="/ao-co-tron" className="hover:text-white">{t("roundneck")}</Link></li>
-              <li><Link href="/products" className="hover:text-white">{t("all")}</Link></li>
+              <li><Link href="/san-pham" className="hover:text-white">{t("all")}</Link></li>
               <li><Link href="/flash-sale" className="hover:text-white">{t("flashSale")}</Link></li>
             </ul>
           </div>

@@ -1,67 +1,74 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import Link from "next/link";
-import { Plus, Scissors, Layers, Package } from "lucide-react";
+import { Plus, Scissors } from "lucide-react";
 import { adminApi } from "@/lib/api";
 import { cn } from "@/lib/utils";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 
 type Tab = "materials" | "rolls" | "productions";
 
 export default function ManufacturingPage() {
+  const queryClient = useQueryClient();
   const [tab, setTab] = useState<Tab>("rolls");
-  const [materials, setMaterials] = useState<any[]>([]);
-  const [rolls, setRolls] = useState<any[]>([]);
-  const [productions, setProductions] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
 
   const [newMaterialCode, setNewMaterialCode] = useState("");
   const [newMaterialName, setNewMaterialName] = useState("");
   const [newMaterialUnit, setNewMaterialUnit] = useState("mét");
-  const [creatingMaterial, setCreatingMaterial] = useState(false);
 
-  useEffect(() => {
-    fetchData();
-  }, [tab]);
+  const { data: materials = [], isLoading: loadingMaterials } = useQuery({
+    queryKey: ["admin", "materials"],
+    queryFn: async () => {
+      const res = await adminApi.getMaterials();
+      return res.data || [];
+    },
+    enabled: tab === "materials",
+  });
 
-  const fetchData = async () => {
-    setLoading(true);
-    try {
-      if (tab === "materials") {
-        const res = await adminApi.getMaterials();
-        setMaterials(res.data || []);
-      } else if (tab === "rolls") {
-        const res = await adminApi.getMaterialRolls();
-        setRolls(res.data || []);
-      } else if (tab === "productions") {
-        const res = await adminApi.getProductions();
-        setProductions(res.data || []);
-      }
-    } catch (e) {
-      console.error(e);
-    } finally {
-      setLoading(false);
-    }
-  };
+  const { data: rolls = [], isLoading: loadingRolls } = useQuery({
+    queryKey: ["admin", "material-rolls"],
+    queryFn: async () => {
+      const res = await adminApi.getMaterialRolls();
+      return res.data || [];
+    },
+    enabled: tab === "rolls",
+  });
 
-  const handleCreateMaterial = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newMaterialName || !newMaterialCode) return;
-    setCreatingMaterial(true);
-    try {
-      await adminApi.createMaterial({
-        code: newMaterialCode,
-        name: newMaterialName,
-        unit: newMaterialUnit,
-      });
+  const { data: productions = [], isLoading: loadingProductions } = useQuery({
+    queryKey: ["admin", "productions"],
+    queryFn: async () => {
+      const res = await adminApi.getProductions();
+      return res.data || [];
+    },
+    enabled: tab === "productions",
+  });
+
+  const isLoading = 
+    (tab === "materials" && loadingMaterials) || 
+    (tab === "rolls" && loadingRolls) || 
+    (tab === "productions" && loadingProductions);
+
+  const createMaterialMutation = useMutation({
+    mutationFn: (data: any) => adminApi.createMaterial(data),
+    onSuccess: () => {
       setNewMaterialCode("");
       setNewMaterialName("");
-      await fetchData();
-    } catch (err: any) {
+      queryClient.invalidateQueries({ queryKey: ["admin", "materials"] });
+    },
+    onError: (err: any) => {
       alert(err.response?.data?.message || "Có lỗi xảy ra");
-    } finally {
-      setCreatingMaterial(false);
     }
+  });
+
+  const handleCreateMaterial = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newMaterialName || !newMaterialCode) return;
+    createMaterialMutation.mutate({
+      code: newMaterialCode,
+      name: newMaterialName,
+      unit: newMaterialUnit,
+    });
   };
 
   return (
@@ -127,7 +134,7 @@ export default function ManufacturingPage() {
         </nav>
       </div>
 
-      {loading ? (
+      {isLoading ? (
         <div className="py-12 text-center text-gray-500">Đang tải...</div>
       ) : (
         <div className="rounded-xl border border-gray-200 bg-white shadow-sm">
@@ -154,7 +161,7 @@ export default function ManufacturingPage() {
                       </td>
                     </tr>
                   ) : (
-                    rolls.map((r) => {
+                    rolls.map((r: any) => {
                       const isZero = Number(r.currentLength) <= 0;
                       return (
                         <tr key={r.id} className="hover:bg-gray-50">
@@ -213,7 +220,7 @@ export default function ManufacturingPage() {
                       </td>
                     </tr>
                   ) : (
-                    productions.map((p) => {
+                    productions.map((p: any) => {
                       const totalYield = p.items.reduce((s: any, i: any) => s + i.yieldQuantity, 0);
                       const costPerItem = p.items[0]?.costPerItem || 0;
                       return (
@@ -280,10 +287,10 @@ export default function ManufacturingPage() {
                 </div>
                 <button
                   type="submit"
-                  disabled={creatingMaterial}
+                  disabled={createMaterialMutation.isPending}
                   className="rounded-lg bg-primary-600 px-4 py-2 text-sm font-medium text-white hover:bg-primary-700 disabled:opacity-50"
                 >
-                  {creatingMaterial ? "Đang thêm..." : "Thêm loại vải"}
+                  {createMaterialMutation.isPending ? "Đang thêm..." : "Thêm loại vải"}
                 </button>
               </form>
 
@@ -304,7 +311,7 @@ export default function ManufacturingPage() {
                         </td>
                       </tr>
                     ) : (
-                      materials.map((m) => (
+                      materials.map((m: any) => (
                         <tr key={m.id} className="hover:bg-gray-50">
                           <td className="px-6 py-4 font-medium">{m.code}</td>
                           <td className="px-6 py-4">{m.name}</td>

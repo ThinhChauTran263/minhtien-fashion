@@ -1,11 +1,12 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useState } from "react";
 import { adminApi } from "@/lib/api";
 import { formatPrice, formatDate } from "@/lib/utils";
 import { cn } from "@/lib/utils";
 import { DataTable, type Column } from "@/components/admin/data-table";
-import { X, ChevronDown } from "lucide-react";
+import { X } from "lucide-react";
+import { useQuery, useMutation, useQueryClient, keepPreviousData } from "@tanstack/react-query";
 
 interface OrderItem {
   id: string;
@@ -82,43 +83,36 @@ const nextStatuses: Record<string, string[]> = {
 };
 
 export default function AdminOrdersPage() {
-  const [orders, setOrders] = useState<Order[]>([]);
+  const queryClient = useQueryClient();
   const [page, setPage] = useState(1);
-  const [totalPages, setTotalPages] = useState(1);
   const [statusFilter, setStatusFilter] = useState("");
-  const [loading, setLoading] = useState(true);
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
-  const [updatingId, setUpdatingId] = useState<string | null>(null);
 
-  const fetchOrders = useCallback(async () => {
-    setLoading(true);
-    try {
+  const { data, isLoading } = useQuery({
+    queryKey: ["admin", "orders", { page, statusFilter }],
+    queryFn: async () => {
       const params: Record<string, any> = { page, limit: 20 };
       if (statusFilter) params.status = statusFilter;
       const res = await adminApi.getOrders(params);
-      setOrders(res.data.data.items);
-      setTotalPages(res.data.data.totalPages);
-    } catch {
-      // silent
-    } finally {
-      setLoading(false);
-    }
-  }, [page, statusFilter]);
+      return res.data.data;
+    },
+    placeholderData: keepPreviousData,
+    staleTime: 60 * 1000,
+  });
 
-  useEffect(() => {
-    fetchOrders();
-  }, [fetchOrders]);
+  const orders = data?.items || [];
+  const totalPages = data?.totalPages || 1;
 
-  const handleStatusChange = async (orderId: string, newStatus: string) => {
-    setUpdatingId(orderId);
-    try {
-      await adminApi.updateOrderStatus(orderId, newStatus);
-      fetchOrders();
-    } catch {
-      // silent
-    } finally {
-      setUpdatingId(null);
-    }
+  const updateStatusMutation = useMutation({
+    mutationFn: ({ orderId, newStatus }: { orderId: string; newStatus: string }) =>
+      adminApi.updateOrderStatus(orderId, newStatus),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["admin", "orders"] });
+    },
+  });
+
+  const handleStatusChange = (orderId: string, newStatus: string) => {
+    updateStatusMutation.mutate({ orderId, newStatus });
   };
 
   const columns: Column<Order>[] = [
@@ -177,10 +171,12 @@ export default function AdminOrdersPage() {
       render: (item) => {
         const available = nextStatuses[item.status] || [];
         if (available.length === 0) return null;
+        const isUpdating = updateStatusMutation.isPending && updateStatusMutation.variables?.orderId === item.id;
+        
         return (
           <div className="relative">
             <select
-              disabled={updatingId === item.id}
+              disabled={isUpdating}
               onChange={(e) => {
                 if (e.target.value) handleStatusChange(item.id, e.target.value);
                 e.target.value = "";
@@ -222,7 +218,7 @@ export default function AdminOrdersPage() {
       </div>
 
       {/* Table */}
-      {loading ? (
+      {isLoading ? (
         <div className="flex items-center justify-center h-40">
           <div className="animate-pulse text-gray-400">Đang tải...</div>
         </div>

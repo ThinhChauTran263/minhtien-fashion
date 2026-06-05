@@ -1,10 +1,11 @@
-﻿"use client";
+"use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useState } from "react";
 import { Scissors, Phone, Mail, X, Trash2, Building2, Users } from "lucide-react";
 import { toast } from "sonner";
 import { adminApi } from "@/lib/api";
 import { formatDate } from "@/lib/utils";
+import { useQuery, useMutation, useQueryClient, keepPreviousData } from "@tanstack/react-query";
 
 interface TailoringRequest {
   id: string;
@@ -33,72 +34,76 @@ const REQUEST_TYPES: Record<string, { label: string; cls: string }> = {
 };
 
 export default function AdminTailoringPage() {
-  const [items, setItems] = useState<TailoringRequest[]>([]);
+  const queryClient = useQueryClient();
   const [page, setPage] = useState(1);
-  const [totalPages, setTotalPages] = useState(1);
-  const [newCount, setNewCount] = useState(0);
   const [statusFilter, setStatusFilter] = useState("");
   const [requestTypeFilter, setRequestTypeFilter] = useState("");
-  const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState<TailoringRequest | null>(null);
-  const [savingNote, setSavingNote] = useState(false);
 
-  const fetchData = useCallback(async () => {
-    setLoading(true);
-    try {
+  const { data, isLoading } = useQuery({
+    queryKey: ["admin", "tailoring", { page, statusFilter, requestTypeFilter }],
+    queryFn: async () => {
       const params: Record<string, any> = { page, limit: 20 };
       if (statusFilter) params.status = statusFilter;
       if (requestTypeFilter) params.requestType = requestTypeFilter;
       const res = await adminApi.getTailoringRequests(params);
-      setItems(res.data.data.items ?? []);
-      setTotalPages(res.data.data.totalPages ?? 1);
-      setNewCount(res.data.data.newCount ?? 0);
-    } catch {
-      toast.error("Không tải được danh sách yêu cầu");
-    } finally {
-      setLoading(false);
-    }
-  }, [page, statusFilter, requestTypeFilter]);
+      return res.data.data;
+    },
+    placeholderData: keepPreviousData,
+    staleTime: 60 * 1000,
+  });
 
-  useEffect(() => {
-    fetchData();
-  }, [fetchData]);
+  const items = data?.items || [];
+  const totalPages = data?.totalPages || 1;
+  const newCount = data?.newCount || 0;
 
-  const updateStatus = async (id: string, status: string) => {
-    try {
-      await adminApi.updateTailoringRequest(id, { status });
+  const updateStatusMutation = useMutation({
+    mutationFn: ({ id, status }: { id: string; status: string }) => adminApi.updateTailoringRequest(id, { status }),
+    onSuccess: (_, variables) => {
       toast.success("Đã cập nhật trạng thái");
-      setSelected((cur) => (cur && cur.id === id ? { ...cur, status } : cur));
-      fetchData();
-    } catch {
+      setSelected((cur) => (cur && cur.id === variables.id ? { ...cur, status: variables.status } : cur));
+      queryClient.invalidateQueries({ queryKey: ["admin", "tailoring"] });
+    },
+    onError: () => {
       toast.error("Không cập nhật được");
     }
-  };
+  });
 
-  const saveNote = async () => {
-    if (!selected) return;
-    setSavingNote(true);
-    try {
-      await adminApi.updateTailoringRequest(selected.id, { adminNote: selected.adminNote ?? "" });
+  const saveNoteMutation = useMutation({
+    mutationFn: ({ id, adminNote }: { id: string; adminNote: string }) => adminApi.updateTailoringRequest(id, { adminNote }),
+    onSuccess: () => {
       toast.success("Đã lưu ghi chú");
-      fetchData();
-    } catch {
+      queryClient.invalidateQueries({ queryKey: ["admin", "tailoring"] });
+    },
+    onError: () => {
       toast.error("Không lưu được ghi chú");
-    } finally {
-      setSavingNote(false);
     }
-  };
+  });
 
-  const remove = async (id: string) => {
-    if (!window.confirm("Xóa yêu cầu này?")) return;
-    try {
-      await adminApi.deleteTailoringRequest(id);
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => adminApi.deleteTailoringRequest(id),
+    onSuccess: () => {
       toast.success("Đã xóa");
       setSelected(null);
-      fetchData();
-    } catch {
+      queryClient.invalidateQueries({ queryKey: ["admin", "tailoring"] });
+    },
+    onError: () => {
       toast.error("Không xóa được");
     }
+  });
+
+  const updateStatus = (id: string, status: string) => {
+    updateStatusMutation.mutate({ id, status });
+  };
+
+  const saveNote = () => {
+    if (!selected) return;
+    saveNoteMutation.mutate({ id: selected.id, adminNote: selected.adminNote ?? "" });
+  };
+
+  const remove = (id: string) => {
+    if (!window.confirm("Xóa yêu cầu này?")) return;
+    deleteMutation.mutate(id);
   };
 
   return (
@@ -129,7 +134,7 @@ export default function AdminTailoringPage() {
         </div>
       </div>
 
-      {loading ? (
+      {isLoading ? (
         <div className="rounded-lg bg-white p-8 text-center text-sm text-gray-400">Đang tải...</div>
       ) : items.length === 0 ? (
         <div className="rounded-lg bg-white p-12 text-center">
@@ -138,11 +143,11 @@ export default function AdminTailoringPage() {
         </div>
       ) : (
         <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
-          {items.map((item) => (
-            <button key={item.id} onClick={() => setSelected(item)} className="flex flex-col rounded-xl border border-gray-100 bg-white p-5 text-left transition-shadow hover:shadow-md">
-              <div className="mb-2 flex items-start justify-between gap-2">
+          {items.map((item: any) => (
+            <button key={item.id} onClick={() => setSelected(item)} className="flex flex-col rounded-xl border border-gray-100 bg-white p-5 text-left transition-shadow hover:shadow-md cursor-pointer">
+              <div className="mb-2 flex items-start justify-between gap-2 w-full">
                 <span className="font-semibold text-gray-900">{item.name}</span>
-                <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${STATUS[item.status]?.cls}`}>
+                <span className={`rounded-full px-2 py-0.5 text-xs font-medium shrink-0 ${STATUS[item.status]?.cls}`}>
                   {STATUS[item.status]?.label ?? item.status}
                 </span>
               </div>
@@ -167,9 +172,9 @@ export default function AdminTailoringPage() {
 
       {totalPages > 1 && (
         <div className="flex items-center justify-center gap-2">
-          <button onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page <= 1} className="rounded border border-gray-200 px-3 py-1.5 text-sm disabled:opacity-40">Trước</button>
+          <button onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page <= 1} className="rounded border border-gray-200 px-3 py-1.5 text-sm disabled:opacity-40 cursor-pointer hover:bg-gray-50">Trước</button>
           <span className="text-sm text-gray-500">{page} / {totalPages}</span>
-          <button onClick={() => setPage((p) => Math.min(totalPages, p + 1))} disabled={page >= totalPages} className="rounded border border-gray-200 px-3 py-1.5 text-sm disabled:opacity-40">Sau</button>
+          <button onClick={() => setPage((p) => Math.min(totalPages, p + 1))} disabled={page >= totalPages} className="rounded border border-gray-200 px-3 py-1.5 text-sm disabled:opacity-40 cursor-pointer hover:bg-gray-50">Sau</button>
         </div>
       )}
 
@@ -179,7 +184,7 @@ export default function AdminTailoringPage() {
           <div className="relative h-full w-full max-w-md overflow-y-auto bg-white shadow-xl">
             <div className="sticky top-0 flex items-center justify-between border-b border-gray-100 bg-white px-6 py-4">
               <h3 className="text-lg font-semibold">Chi tiết yêu cầu</h3>
-              <button onClick={() => setSelected(null)} className="rounded p-1 hover:bg-gray-100"><X className="h-5 w-5" /></button>
+              <button onClick={() => setSelected(null)} className="rounded p-1 hover:bg-gray-100 cursor-pointer"><X className="h-5 w-5" /></button>
             </div>
             <div className="space-y-5 p-6">
               <div>
@@ -210,7 +215,7 @@ export default function AdminTailoringPage() {
                 <p className="mb-2 text-xs uppercase tracking-wide text-gray-400">Trạng thái</p>
                 <div className="flex flex-wrap gap-2">
                   {Object.entries(STATUS).map(([key, value]) => (
-                    <button key={key} onClick={() => updateStatus(selected.id, key)} className={`rounded-full px-3 py-1.5 text-xs font-medium transition-colors ${selected.status === key ? value.cls + " ring-2 ring-offset-1 ring-current" : "border border-gray-200 text-gray-500 hover:bg-gray-50"}`}>
+                    <button key={key} onClick={() => updateStatus(selected.id, key)} className={`rounded-full px-3 py-1.5 text-xs font-medium transition-colors cursor-pointer ${selected.status === key ? value.cls + " ring-2 ring-offset-1 ring-current" : "border border-gray-200 text-gray-500 hover:bg-gray-50"}`}>
                       {value.label}
                     </button>
                   ))}
@@ -219,10 +224,10 @@ export default function AdminTailoringPage() {
               <div>
                 <p className="mb-2 text-xs uppercase tracking-wide text-gray-400">Ghi chú nội bộ</p>
                 <textarea rows={3} value={selected.adminNote ?? ""} onChange={(e) => setSelected({ ...selected, adminNote: e.target.value })} placeholder="Ghi chú khi tư vấn khách..." className="input resize-none" />
-                <button onClick={saveNote} disabled={savingNote} className="btn-outline mt-2 px-4 py-2 text-sm">{savingNote ? "Đang lưu..." : "Lưu ghi chú"}</button>
+                <button onClick={saveNote} disabled={saveNoteMutation.isPending} className="btn-outline mt-2 px-4 py-2 text-sm cursor-pointer">{saveNoteMutation.isPending ? "Đang lưu..." : "Lưu ghi chú"}</button>
               </div>
               <div className="border-t border-gray-100 pt-4 text-xs text-gray-400">Gửi lúc: {formatDate(selected.createdAt)}</div>
-              <button onClick={() => remove(selected.id)} className="inline-flex items-center gap-2 text-sm font-medium text-red-600 hover:underline"><Trash2 className="h-4 w-4" /> Xóa yêu cầu</button>
+              <button onClick={() => remove(selected.id)} className="inline-flex items-center gap-2 text-sm font-medium text-red-600 hover:underline cursor-pointer"><Trash2 className="h-4 w-4" /> Xóa yêu cầu</button>
             </div>
           </div>
         </div>

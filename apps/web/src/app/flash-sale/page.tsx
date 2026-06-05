@@ -67,7 +67,7 @@ export default function FlashSalePage() {
         <Zap className="w-12 h-12 mx-auto text-gray-300 mb-4" />
         <h1 className="text-2xl font-bold text-gray-900">{t("noActive")}</h1>
         <p className="mt-2 text-gray-500">{t("checkLater")}</p>
-        <Link href="/products" className="mt-6 btn-primary inline-block cursor-pointer">
+        <Link href="/san-pham" className="mt-6 btn-primary inline-block cursor-pointer">
           {t("viewProducts")}
         </Link>
       </div>
@@ -98,7 +98,7 @@ export default function FlashSalePage() {
           return (
             <Link
               key={item.id}
-              href={`/products/${item.product.slug}`}
+              href={`/san-pham/${item.product.slug}`}
               className="group bg-white rounded-lg border border-gray-100 overflow-hidden hover:shadow-md transition-shadow cursor-pointer"
             >
               <div className="relative aspect-[3/4] bg-primary-50">

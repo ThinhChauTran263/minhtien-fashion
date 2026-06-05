@@ -24,7 +24,7 @@ interface SearchProduct {
 const navItems = [
   { href: "/ao-co-co", key: "collared" },
   { href: "/ao-co-tron", key: "roundneck" },
-  { href: "/products", key: "allProducts" },
+  { href: "/san-pham", key: "allProducts" },
   { href: "/dat-may", key: "tailoring" },
   { href: "/size-guide", key: "sizeGuide" },
   { href: "/blog", key: "blog" },
@@ -177,7 +177,7 @@ export function Header() {
               {query.trim().length >= 2 && !searching && results.length === 0 && <p className="px-2 py-6 text-sm text-primary-400">{t("noResults")}</p>}
               <div className="space-y-2">
                 {results.map((product) => (
-                  <button key={product.id} onClick={() => { closeSearch(); router.push(`/products/${product.slug}`); }} className="flex w-full items-center gap-3 rounded-card p-2 text-left transition-colors hover:bg-primary-50">
+                  <button key={product.id} onClick={() => { closeSearch(); router.push(`/san-pham/${product.slug}`); }} className="flex w-full items-center gap-3 rounded-card p-2 text-left transition-colors hover:bg-primary-50">
                     <span className="relative h-16 w-12 shrink-0 overflow-hidden rounded bg-primary-50">
                       <Image src={product.thumbnail} alt={product.name} fill className="object-cover" sizes="48px" />
                     </span>
@@ -201,4 +201,3 @@ export function Header() {
     </header>
   );
 }
-

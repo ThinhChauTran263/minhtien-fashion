@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useEffect } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useTranslations } from "next-intl";
 import { Save, Settings } from "lucide-react";
@@ -8,6 +8,7 @@ import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { z } from "zod";
 import { adminApi } from "@/lib/api";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 
 type SettingsForm = {
   shopName: string;
@@ -51,8 +52,7 @@ function Field({ label, error, children }: { label: string; error?: string; chil
 
 export default function AdminSettingsPage() {
   const t = useTranslations("admin.settings");
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
+  const queryClient = useQueryClient();
 
   const settingsSchema = useMemo(
     () =>
@@ -80,28 +80,38 @@ export default function AdminSettingsPage() {
     formState: { errors },
   } = useForm<SettingsForm>({ resolver: zodResolver(settingsSchema), defaultValues });
 
-  useEffect(() => {
-    adminApi
-      .getSettings()
-      .then((res) => reset({ ...defaultValues, ...(res.data.data ?? {}) }))
-      .catch(() => toast.error(t("loadError")))
-      .finally(() => setLoading(false));
-  }, [reset, t]);
+  const { data: settingsData, isLoading } = useQuery({
+    queryKey: ["admin", "settings"],
+    queryFn: async () => {
+      const res = await adminApi.getSettings();
+      return res.data.data ?? {};
+    },
+    staleTime: 5 * 60 * 1000,
+  });
 
-  const onSubmit = async (values: SettingsForm) => {
-    setSaving(true);
-    try {
-      await adminApi.updateSettings(values);
-      toast.success(t("saved"));
-      reset(values);
-    } catch {
-      toast.error(t("saveError"));
-    } finally {
-      setSaving(false);
+  useEffect(() => {
+    if (settingsData) {
+      reset({ ...defaultValues, ...settingsData });
     }
+  }, [settingsData, reset]);
+
+  const updateMutation = useMutation({
+    mutationFn: (values: SettingsForm) => adminApi.updateSettings(values),
+    onSuccess: (_, variables) => {
+      toast.success(t("saved"));
+      reset(variables);
+      queryClient.invalidateQueries({ queryKey: ["admin", "settings"] });
+    },
+    onError: () => {
+      toast.error(t("saveError"));
+    }
+  });
+
+  const onSubmit = (values: SettingsForm) => {
+    updateMutation.mutate(values);
   };
 
-  if (loading) {
+  if (isLoading) {
     return <div className="rounded-lg bg-white p-8 text-center text-sm text-gray-400">{t("loading")}</div>;
   }
 
@@ -152,8 +162,8 @@ export default function AdminSettingsPage() {
         </section>
 
         <div className="flex justify-end">
-          <button type="submit" disabled={saving} className="inline-flex items-center gap-2 rounded-md bg-gray-900 px-5 py-2.5 text-sm font-medium text-white hover:bg-gray-800 disabled:opacity-60">
-            <Save className="h-4 w-4" /> {saving ? t("saving") : t("save")}
+          <button type="submit" disabled={updateMutation.isPending} className="inline-flex items-center gap-2 rounded-md bg-gray-900 px-5 py-2.5 text-sm font-medium text-white hover:bg-gray-800 disabled:opacity-60 cursor-pointer">
+            <Save className="h-4 w-4" /> {updateMutation.isPending ? t("saving") : t("save")}
           </button>
         </div>
       </form>

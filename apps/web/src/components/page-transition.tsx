@@ -17,17 +17,19 @@ export function PageTransition({ children }: { children: React.ReactNode }) {
 
   return (
     <MotionConfig reducedMotion="user">
-      <AnimatePresence mode="wait" initial={false}>
-        <motion.div
-          key={transitionKey}
-          initial={{ opacity: 0, y: 12, filter: "blur(4px)" }}
-          animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
-          exit={{ opacity: 0, y: -8, filter: "blur(2px)" }}
-          transition={{ duration: 0.32, ease: EASE }}
-        >
-          {children}
-        </motion.div>
-      </AnimatePresence>
+      {/* 
+        Đã bỏ AnimatePresence mode="wait" và key theo pathname để tránh 
+        React phải huỷ và tạo lại toàn bộ DOM của trang (gây lag rất nặng).
+        Bây giờ chuyển trang sẽ là instant (ngay lập tức).
+      */}
+      <motion.div
+        key="main-app"
+        initial={{ opacity: 0, y: 12, filter: "blur(4px)" }}
+        animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
+        transition={{ duration: 0.32, ease: EASE }}
+      >
+        {children}
+      </motion.div>
     </MotionConfig>
   );
 }

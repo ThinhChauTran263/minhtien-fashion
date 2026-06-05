@@ -19,7 +19,7 @@ export default async function NotFound() {
             {t("common.backHome")}
           </Link>
           <Link
-            href="/products"
+          href="/san-pham"
             className="btn-outline inline-flex items-center gap-2 cursor-pointer"
           >
             <Search className="w-4 h-4" />

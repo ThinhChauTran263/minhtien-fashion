@@ -1,18 +1,32 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import Link from "next/link";
 import { toast } from "sonner";
 import { useTranslations } from "next-intl";
 import { ProductCard } from "@/components/product/product-card";
 import { userApi } from "@/lib/api";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 
 export default function WishlistPage() {
+  const queryClient = useQueryClient();
   const t = useTranslations("account");
-  const [items, setItems] = useState<any[]>([]);
 
-  const load = () => userApi.getWishlist().then(({ data }) => setItems(data.data ?? []));
-  useEffect(() => { load(); }, []);
+  const { data: items = [] } = useQuery({
+    queryKey: ["account", "wishlist"],
+    queryFn: async () => {
+      const { data } = await userApi.getWishlist();
+      return data.data ?? [];
+    },
+    staleTime: 60 * 1000,
+  });
+
+  const removeMutation = useMutation({
+    mutationFn: (id: string) => userApi.removeFromWishlist(id),
+    onSuccess: () => {
+      toast.success(t("wishlistRemoved"));
+      queryClient.invalidateQueries({ queryKey: ["account", "wishlist"] });
+    }
+  });
 
   return (
     <div>
@@ -29,17 +43,14 @@ export default function WishlistPage() {
         </div>
       )}
       <div className="grid grid-cols-2 gap-6 md:grid-cols-3 lg:grid-cols-4">
-        {items.map((item) => (
+        {items.map((item: any) => (
           <div key={item.id} className="relative">
             <ProductCard product={item.product} />
             <button
               type="button"
-              onClick={async () => {
-                await userApi.removeFromWishlist(item.product.id);
-                toast.success(t("wishlistRemoved"));
-                load();
-              }}
-              className="mt-3 w-full rounded border border-red-200 px-3 py-2 text-sm text-red-600 hover:bg-red-50"
+              onClick={() => removeMutation.mutate(item.product.id)}
+              disabled={removeMutation.isPending}
+              className="mt-3 w-full rounded border border-red-200 px-3 py-2 text-sm text-red-600 hover:bg-red-50 disabled:opacity-50 cursor-pointer"
             >
               {t("wishlistRemove")}
             </button>

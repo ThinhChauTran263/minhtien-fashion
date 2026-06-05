@@ -1,11 +1,12 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import { Download, Mail } from "lucide-react";
 import { toast } from "sonner";
 import { DataTable, type Column } from "@/components/admin/data-table";
 import { adminApi } from "@/lib/api";
+import { useQuery, keepPreviousData } from "@tanstack/react-query";
 
 interface NewsletterSubscriber {
   id: string;
@@ -17,23 +18,21 @@ interface NewsletterSubscriber {
 export default function AdminNewsletterPage() {
   const t = useTranslations("admin.newsletter");
   const locale = useLocale();
-  const [items, setItems] = useState<NewsletterSubscriber[]>([]);
   const [page, setPage] = useState(1);
-  const [totalPages, setTotalPages] = useState(1);
-  const [loading, setLoading] = useState(true);
   const [exporting, setExporting] = useState(false);
 
-  useEffect(() => {
-    setLoading(true);
-    adminApi
-      .getNewsletter({ page, limit: 20 })
-      .then((res) => {
-        setItems(res.data.data.items ?? []);
-        setTotalPages(res.data.data.totalPages ?? 1);
-      })
-      .catch(() => toast.error(t("loadError")))
-      .finally(() => setLoading(false));
-  }, [page, t]);
+  const { data, isLoading } = useQuery({
+    queryKey: ["admin", "newsletter", { page }],
+    queryFn: async () => {
+      const res = await adminApi.getNewsletter({ page, limit: 20 });
+      return res.data.data;
+    },
+    placeholderData: keepPreviousData,
+    staleTime: 60 * 1000,
+  });
+
+  const items = data?.items || [];
+  const totalPages = data?.totalPages || 1;
 
   const columns = useMemo<Column<NewsletterSubscriber>[]>(
     () => [
@@ -85,12 +84,12 @@ export default function AdminNewsletterPage() {
           </h1>
           <p className="mt-1 text-sm text-gray-500">{t("subtitle")}</p>
         </div>
-        <button onClick={handleExport} disabled={exporting} className="inline-flex items-center gap-2 rounded-md bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-800 disabled:opacity-60">
+        <button onClick={handleExport} disabled={exporting} className="inline-flex items-center gap-2 rounded-md bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-800 disabled:opacity-60 cursor-pointer">
           <Download className="h-4 w-4" /> {exporting ? t("exporting") : t("exportCsv")}
         </button>
       </div>
 
-      {loading ? (
+      {isLoading ? (
         <div className="rounded-lg bg-white p-8 text-center text-sm text-gray-400">{t("loading")}</div>
       ) : (
         <DataTable columns={columns} data={items} page={page} totalPages={totalPages} onPageChange={setPage} emptyMessage={t("empty")} />

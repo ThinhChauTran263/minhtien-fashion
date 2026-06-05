@@ -1,44 +1,38 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useState } from "react";
 import Link from "next/link";
 import { Plus, Pencil, Trash2, Loader2 } from "lucide-react";
 import { api } from "@/lib/api";
 import { ConfirmDialog } from "@/components/admin/confirm-dialog";
 import { formatDate } from "@/lib/customer-utils";
+import { useQuery, useMutation, useQueryClient, keepPreviousData } from "@tanstack/react-query";
 
 export default function AdminBlogPage() {
-  const [items, setItems] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient();
   const [deleteId, setDeleteId] = useState<string | null>(null);
-  const [deleting, setDeleting] = useState(false);
 
-  const fetchData = useCallback(async () => {
-    setLoading(true);
-    try {
+  const { data: items = [], isLoading } = useQuery({
+    queryKey: ["admin", "blog"],
+    queryFn: async () => {
       const res = await api.get("/admin/blog/posts");
-      setItems(res.data.data.items);
-    } catch {
-      // silent
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+      return res.data.data.items || [];
+    },
+    placeholderData: keepPreviousData,
+    staleTime: 60 * 1000,
+  });
 
-  useEffect(() => {
-    fetchData();
-  }, [fetchData]);
-
-  const handleDelete = async () => {
-    if (!deleteId) return;
-    setDeleting(true);
-    try {
-      await api.delete(`/admin/blog/posts/${deleteId}`);
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => api.delete(`/admin/blog/posts/${id}`),
+    onSuccess: () => {
       setDeleteId(null);
-      fetchData();
-    } finally {
-      setDeleting(false);
+      queryClient.invalidateQueries({ queryKey: ["admin", "blog"] });
     }
+  });
+
+  const handleDelete = () => {
+    if (!deleteId) return;
+    deleteMutation.mutate(deleteId);
   };
 
   return (
@@ -51,7 +45,7 @@ export default function AdminBlogPage() {
         </Link>
       </div>
 
-      {loading ? (
+      {isLoading ? (
         <div className="flex justify-center h-40 items-center">
           <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
         </div>
@@ -72,7 +66,7 @@ export default function AdminBlogPage() {
               {items.length === 0 ? (
                 <tr><td colSpan={6} className="px-4 py-8 text-center text-gray-400">Chưa có bài viết</td></tr>
               ) : (
-                items.map((p) => (
+                items.map((p: any) => (
                   <tr key={p.id} className="border-b border-gray-100">
                     <td className="px-4 py-3 font-medium max-w-xs truncate">{p.title}</td>
                     <td className="px-4 py-3">{p.category?.name}</td>
@@ -107,7 +101,7 @@ export default function AdminBlogPage() {
         message="Bạn có chắc muốn xoá bài viết này?"
         onConfirm={handleDelete}
         onCancel={() => setDeleteId(null)}
-        loading={deleting}
+        loading={deleteMutation.isPending}
       />
     </div>
   );

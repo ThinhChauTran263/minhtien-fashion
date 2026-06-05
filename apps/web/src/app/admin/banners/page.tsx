@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Plus, Pencil, Trash2, X } from "lucide-react";
 import { adminApi } from "@/lib/api";
 import { ConfirmDialog } from "@/components/admin/confirm-dialog";
+import { useQuery, useMutation, useQueryClient, keepPreviousData } from "@tanstack/react-query";
 
 interface Banner {
   id: string;
@@ -33,31 +34,47 @@ const defaultForm = {
 };
 
 export default function AdminBannerPage() {
-  const [banners, setBanners] = useState<Banner[]>([]);
-  const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient();
   const [deleteId, setDeleteId] = useState<string | null>(null);
-  const [deleting, setDeleting] = useState(false);
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState(defaultForm);
-  const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState("");
 
-  const fetchBanners = async () => {
-    setLoading(true);
-    try {
+  const { data: banners = [], isLoading } = useQuery({
+    queryKey: ["admin", "banners"],
+    queryFn: async () => {
       const res = await adminApi.getBanners();
-      setBanners(res.data.data);
-    } catch {
-      // silent
-    } finally {
-      setLoading(false);
-    }
-  };
+      return res.data.data || [];
+    },
+    placeholderData: keepPreviousData,
+    staleTime: 60 * 1000,
+  });
 
-  useEffect(() => {
-    fetchBanners();
-  }, []);
+  const saveMutation = useMutation({
+    mutationFn: (payload: any) => {
+      if (editingId) {
+        return adminApi.updateBanner(editingId, payload);
+      } else {
+        return adminApi.createBanner(payload);
+      }
+    },
+    onSuccess: () => {
+      setShowForm(false);
+      queryClient.invalidateQueries({ queryKey: ["admin", "banners"] });
+    },
+    onError: (err: any) => {
+      setFormError(err.response?.data?.message || "Có l i xảy ra");
+    }
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => adminApi.deleteBanner(id),
+    onSuccess: () => {
+      setDeleteId(null);
+      queryClient.invalidateQueries({ queryKey: ["admin", "banners"] });
+    }
+  });
 
   const openCreate = () => {
     setEditingId(null);
@@ -81,44 +98,21 @@ export default function AdminBannerPage() {
     setShowForm(true);
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    setSubmitting(true);
     setFormError("");
-    try {
-      const payload = {
-        ...form,
-        order: Number(form.order),
-        imageMobile: form.imageMobile || undefined,
-        link: form.link || undefined,
-      };
-
-      if (editingId) {
-        await adminApi.updateBanner(editingId, payload);
-      } else {
-        await adminApi.createBanner(payload);
-      }
-      setShowForm(false);
-      fetchBanners();
-    } catch (err: any) {
-      setFormError(err.response?.data?.message || "Có l�i xảy ra");
-    } finally {
-      setSubmitting(false);
-    }
+    const payload = {
+      ...form,
+      order: Number(form.order),
+      imageMobile: form.imageMobile || undefined,
+      link: form.link || undefined,
+    };
+    saveMutation.mutate(payload);
   };
 
-  const handleDelete = async () => {
+  const handleDelete = () => {
     if (!deleteId) return;
-    setDeleting(true);
-    try {
-      await adminApi.deleteBanner(deleteId);
-      setDeleteId(null);
-      fetchBanners();
-    } catch {
-      // silent
-    } finally {
-      setDeleting(false);
-    }
+    deleteMutation.mutate(deleteId);
   };
 
   return (
@@ -131,7 +125,7 @@ export default function AdminBannerPage() {
         </button>
       </div>
 
-      {loading ? (
+      {isLoading ? (
         <div className="flex items-center justify-center h-40">
           <div className="animate-pulse text-gray-400">Đang tải...</div>
         </div>
@@ -141,7 +135,7 @@ export default function AdminBannerPage() {
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {banners.map((banner) => (
+          {banners.map((banner: any) => (
             <div key={banner.id} className="bg-white rounded-lg shadow-sm overflow-hidden">
               {/* Image Preview */}
               <div className="relative aspect-[16/6] bg-gray-100">
@@ -150,7 +144,7 @@ export default function AdminBannerPage() {
                   alt={banner.title}
                   className="w-full h-full object-cover"
                   onError={(e) => {
-                    (e.target as HTMLImageElement).src = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='150' fill='%23f3f4f6'%3E%3Crect width='400' height='150'/%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' fill='%239ca3af' font-size='14'%3EKhông tải �ược ảnh%3C/text%3E%3C/svg%3E";
+                    (e.target as HTMLImageElement).src = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='150' fill='%23f3f4f6'%3E%3Crect width='400' height='150'/%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' fill='%239ca3af' font-size='14'%3EKhông tải  ược ảnh%3C/text%3E%3C/svg%3E";
                   }}
                 />
                 {!banner.isActive && (
@@ -210,7 +204,7 @@ export default function AdminBannerPage() {
               )}
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Tiêu �ề *</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Tiêu  ề *</label>
                 <input
                   value={form.title}
                   onChange={(e) => setForm({ ...form, title: e.target.value })}
@@ -244,7 +238,7 @@ export default function AdminBannerPage() {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Link �ích</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Link  ích</label>
                 <input
                   value={form.link}
                   onChange={(e) => setForm({ ...form, link: e.target.value })}
@@ -255,7 +249,7 @@ export default function AdminBannerPage() {
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">V�9 trí *</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">V9 trí *</label>
                   <select
                     value={form.position}
                     onChange={(e) => setForm({ ...form, position: e.target.value })}
@@ -285,12 +279,12 @@ export default function AdminBannerPage() {
                   onChange={(e) => setForm({ ...form, isActive: e.target.checked })}
                   className="w-4 h-4 rounded border-gray-300"
                 />
-                <span className="text-sm text-gray-700">HiỒn th�9</span>
+                <span className="text-sm text-gray-700">HiỒn th9</span>
               </label>
 
               <div className="flex items-center gap-3 pt-2">
-                <button type="submit" disabled={submitting} className="btn-primary cursor-pointer">
-                  {submitting ? "Đang lưu..." : editingId ? "Cập nhật" : "Tạo banner"}
+                <button type="submit" disabled={saveMutation.isPending} className="btn-primary cursor-pointer">
+                  {saveMutation.isPending ? "Đang lưu..." : editingId ? "Cập nhật" : "Tạo banner"}
                 </button>
                 <button type="button" onClick={() => setShowForm(false)} className="btn-outline cursor-pointer">
                   Huỷ
@@ -308,9 +302,8 @@ export default function AdminBannerPage() {
         message="Bạn có chắc muốn xóa banner này? Hành động không thể hoàn tác."
         onConfirm={handleDelete}
         onCancel={() => setDeleteId(null)}
-        loading={deleting}
+        loading={deleteMutation.isPending}
       />
     </div>
   );
 }
-

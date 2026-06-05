@@ -11,7 +11,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   // Static routes
   const staticRoutes: MetadataRoute.Sitemap = [
     { url: `${SITE_URL}/`, lastModified: now, changeFrequency: "daily", priority: 1.0 },
-    { url: `${SITE_URL}/products`, lastModified: now, changeFrequency: "daily", priority: 0.9 },
+    { url: `${SITE_URL}/san-pham`, lastModified: now, changeFrequency: "daily", priority: 0.9 },
     { url: `${SITE_URL}/ao-co-co`, lastModified: now, changeFrequency: "daily", priority: 0.8 },
     { url: `${SITE_URL}/ao-co-tron`, lastModified: now, changeFrequency: "daily", priority: 0.8 },
     { url: `${SITE_URL}/blog`, lastModified: now, changeFrequency: "daily", priority: 0.7 },
@@ -27,7 +27,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   try {
     const items = await serverApi.getAllProductSlugs();
     productRoutes = items.map((p) => ({
-      url: `${SITE_URL}/products/${p.slug}`,
+      url: `${SITE_URL}/san-pham/${p.slug}`,
       lastModified: p.updatedAt ? new Date(p.updatedAt) : now,
       changeFrequency: "weekly" as const,
       priority: 0.7,

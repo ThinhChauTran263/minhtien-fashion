@@ -1,40 +1,44 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Gift, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { useLocale, useTranslations } from "next-intl";
 import { giftCardApi } from "@/lib/api";
 import { formatPrice } from "@/lib/utils";
 import { formatDate } from "@/lib/customer-utils";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 
 export default function MyGiftCardsPage() {
+  const queryClient = useQueryClient();
   const t = useTranslations("giftCard");
   const locale = useLocale();
-  const [cards, setCards] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
   const [code, setCode] = useState("");
-  const [redeeming, setRedeeming] = useState(false);
 
-  const fetchCards = () => {
-    giftCardApi.myCards().then(({ data }) => setCards(data.data || [])).catch(() => {}).finally(() => setLoading(false));
-  };
+  const { data: cards = [], isLoading: loading } = useQuery({
+    queryKey: ["account", "gift-cards"],
+    queryFn: async () => {
+      const { data } = await giftCardApi.myCards();
+      return data.data || [];
+    },
+    staleTime: 60 * 1000,
+  });
 
-  useEffect(fetchCards, []);
-
-  const handleRedeem = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setRedeeming(true);
-    try {
-      await giftCardApi.redeem(code);
+  const redeemMutation = useMutation({
+    mutationFn: (codeStr: string) => giftCardApi.redeem(codeStr),
+    onSuccess: () => {
       toast.success(t("redeemSuccess"));
       setCode("");
-      fetchCards();
-    } catch (err: any) {
+      queryClient.invalidateQueries({ queryKey: ["account", "gift-cards"] });
+    },
+    onError: (err: any) => {
       toast.error(err.response?.data?.error || t("redeemFailed"));
-    } finally {
-      setRedeeming(false);
     }
+  });
+
+  const handleRedeem = (e: React.FormEvent) => {
+    e.preventDefault();
+    redeemMutation.mutate(code);
   };
 
   return (
@@ -45,8 +49,8 @@ export default function MyGiftCardsPage() {
         <label className="block text-sm font-medium text-gray-700 mb-2">{t("redeemLabel")}</label>
         <div className="flex gap-2">
           <input value={code} onChange={(e) => setCode(e.target.value.toUpperCase())} placeholder="GC-XXXX-XXXX-XXXX" className="input flex-1 font-mono" />
-          <button type="submit" disabled={redeeming} className="btn-primary px-4 cursor-pointer">
-            {redeeming ? "..." : t("redeem")}
+          <button type="submit" disabled={redeemMutation.isPending} className="btn-primary px-4 cursor-pointer">
+            {redeemMutation.isPending ? "..." : t("redeem")}
           </button>
         </div>
       </form>
@@ -59,7 +63,7 @@ export default function MyGiftCardsPage() {
         <p className="text-center text-gray-400 py-8">{t("noCards")}</p>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          {cards.map((c) => (
+          {cards.map((c: any) => (
             <div key={c.id} className={`rounded-xl p-5 text-white ${c.isActive ? "bg-gradient-to-r from-primary-800 to-primary-900" : "bg-gray-400"}`}>
               <Gift className="w-6 h-6 mb-2" />
               <p className="font-mono text-sm">{c.code}</p>

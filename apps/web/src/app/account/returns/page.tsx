@@ -1,10 +1,10 @@
-﻿"use client";
+"use client";
 
-import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useLocale, useTranslations } from "next-intl";
 import { returnApi } from "@/lib/api";
 import { formatDate } from "@/lib/customer-utils";
+import { useQuery } from "@tanstack/react-query";
 
 const STATUS_KEYS = ["PENDING", "APPROVED", "REJECTED", "RECEIVED", "REFUNDED", "COMPLETED"] as const;
 type StatusKey = (typeof STATUS_KEYS)[number];
@@ -22,12 +22,15 @@ export default function MyReturnsPage() {
   const t = useTranslations("returns");
   const tCommon = useTranslations("common");
   const locale = useLocale();
-  const [items, setItems] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    returnApi.getMine().then((res) => setItems(res.data.data)).finally(() => setLoading(false));
-  }, []);
+  const { data: items = [], isLoading } = useQuery({
+    queryKey: ["account", "returns"],
+    queryFn: async () => {
+      const res = await returnApi.getMine();
+      return res.data.data || [];
+    },
+    staleTime: 60 * 1000,
+  });
 
   const getStatusLabel = (status: string) => {
     const key = STATUS_TR_KEY[status as StatusKey];
@@ -41,7 +44,7 @@ export default function MyReturnsPage() {
         <p className="mt-1 text-sm text-primary-500">{t("pageSubtitle")}</p>
       </div>
 
-      {loading ? (
+      {isLoading ? (
         <p className="text-sm text-primary-500">{tCommon("loading")}</p>
       ) : items.length === 0 ? (
         <div className="rounded-lg border border-primary-100 bg-white p-6 text-sm text-primary-500">
@@ -49,7 +52,7 @@ export default function MyReturnsPage() {
         </div>
       ) : (
         <div className="space-y-4">
-          {items.map((item) => {
+          {items.map((item: any) => {
             const stepKeys: StatusKey[] = ["PENDING", "APPROVED", "RECEIVED", item.type === "RETURN" ? "REFUNDED" : "COMPLETED"];
             const currentIdx = STATUS_KEYS.indexOf(item.status as StatusKey);
             return (
