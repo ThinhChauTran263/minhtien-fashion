@@ -1,0 +1,63 @@
+version: "3.9"
+
+# =======================================================
+# Môi trường Production cho Backend (Chạy trên máy ảo EC2)
+# Khởi động: docker compose -f docker-compose.prod.yml up -d --build
+# =======================================================
+
+services:
+  api:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    container_name: mtf-api-prod
+    restart: always
+    ports:
+      - "8000:8000"
+    # Nạp file biến môi trường trên máy chủ thật
+    env_file:
+      - ./apps/api/.env
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks:
+      - mtf-network
+
+  redis:
+    image: redis:7-alpine
+    container_name: mtf-redis-prod
+    restart: always
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_prod_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - mtf-network
+
+  meilisearch:
+    image: getmeili/meilisearch:v1.12
+    container_name: mtf-meilisearch-prod
+    environment:
+      # Sẽ tự động lấy biến MEILI_MASTER_KEY từ file .env nếu có truyền vào
+      MEILI_MASTER_KEY: ${MEILI_MASTER_KEY:-vui_long_doi_key_nay_tren_production}
+      MEILI_ENV: production
+    ports:
+      - "7700:7700"
+    volumes:
+      - meili_prod_data:/meili_data
+    restart: always
+    networks:
+      - mtf-network
+
+volumes:
+  redis_prod_data:
+  meili_prod_data:
+
+networks:
+  mtf-network:
+    driver: bridge

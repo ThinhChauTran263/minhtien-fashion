@@ -1,0 +1,45 @@
+name: Deploy Backend to AWS EC2
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'apps/api/**'
+      - 'packages/**'
+      - 'package.json'
+      - 'docker-compose.prod.yml'
+      - '.github/workflows/deploy-aws.yml'
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Deploy to EC2 via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USERNAME }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          script: |
+            echo "🚀 Bat dau qua trinh deploy tren server..."
+            
+            # Kiem tra thu muc source code da co chua, neu chua thi clone
+            if [ ! -d "minh-tien-fashion" ]; then
+              echo "Dang clone repository lan dau tien..."
+              # Luu y: ban can add SSH key cua EC2 vao Github de lenh clone nay thanh cong
+              # hoac dung git clone bang HTTPS co token
+              git clone git@github.com:${{ github.repository }}.git minh-tien-fashion
+            fi
+
+            cd minh-tien-fashion
+            
+            echo "📥 Dang keo code moi nhat (git pull)..."
+            git reset --hard
+            git pull origin main
+
+            echo "📦 Dang Build va khoi dong lai Docker container..."
+            docker compose -f docker-compose.prod.yml up -d --build
+
+            echo "✅ Deploy thanh cong!"
